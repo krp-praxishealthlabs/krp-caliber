@@ -10,6 +10,8 @@ export const DEFAULT_MODELS: Record<ProviderType, string> = {
   anthropic: 'claude-sonnet-4-6',
   vertex: 'claude-sonnet-4-6',
   openai: 'gpt-4.1',
+  cursor: 'default',
+  'claude-cli': 'default',
 };
 
 export function loadConfig(): LLMConfig | null {
@@ -49,6 +51,22 @@ export function resolveFromEnv(): LLMConfig | null {
     };
   }
 
+  // Prefer Cursor seat when explicitly requested (no API key; uses agent acp + agent login)
+  if (process.env.CALIBER_USE_CURSOR_SEAT === '1' || process.env.CALIBER_USE_CURSOR_SEAT === 'true') {
+    return {
+      provider: 'cursor',
+      model: DEFAULT_MODELS.cursor,
+    };
+  }
+
+  // Prefer Claude Code CLI (uses stored app login — Pro/Max/Team; no API key)
+  if (process.env.CALIBER_USE_CLAUDE_CLI === '1' || process.env.CALIBER_USE_CLAUDE_CLI === 'true') {
+    return {
+      provider: 'claude-cli',
+      model: DEFAULT_MODELS['claude-cli'],
+    };
+  }
+
   return null;
 }
 
@@ -57,7 +75,7 @@ export function readConfigFile(): LLMConfig | null {
     if (!fs.existsSync(CONFIG_FILE)) return null;
     const raw = fs.readFileSync(CONFIG_FILE, 'utf-8');
     const parsed = JSON.parse(raw) as Record<string, unknown>;
-    if (!parsed.provider || !['anthropic', 'vertex', 'openai'].includes(parsed.provider as string)) {
+    if (!parsed.provider || !['anthropic', 'vertex', 'openai', 'cursor', 'claude-cli'].includes(parsed.provider as string)) {
       return null;
     }
     return parsed as unknown as LLMConfig;

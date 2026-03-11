@@ -1,4 +1,4 @@
-export type ProviderType = 'anthropic' | 'vertex' | 'openai';
+export type ProviderType = 'anthropic' | 'vertex' | 'openai' | 'cursor' | 'claude-cli';
 
 export interface LLMConfig {
   provider: ProviderType;

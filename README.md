@@ -1,6 +1,6 @@
 # Caliber
 
-Open-source CLI that analyzes your project and generates optimized configuration files for AI coding agents (Claude Code, Cursor). Bring your own LLM — supports Anthropic, OpenAI, Google Vertex AI, and any OpenAI-compatible endpoint.
+Open-source CLI that analyzes your project and generates optimized configuration files for AI coding agents (Claude Code, Cursor). Use your **current seat** (Claude Code Pro/Max/Team or Cursor subscription, no API key) or bring your own API key — supports Claude Code CLI (`claude -p`), Cursor (ACP), Anthropic, OpenAI, Google Vertex AI, and any OpenAI-compatible endpoint.
 
 ## Installation
 
@@ -11,13 +11,14 @@ npm install -g @rely-ai/caliber
 ## Quick Start
 
 ```bash
-# Option 1: Set your API key as an environment variable
+# Option 1: Use your current seat — no API key
+caliber config   # choose "Claude Code" (Pro/Max/Team) or "Cursor"
+# Or: export CALIBER_USE_CLAUDE_CLI=1  or  CALIBER_USE_CURSOR_SEAT=1
+
+# Option 2: Set an API key
 export ANTHROPIC_API_KEY=sk-ant-...
 
-# Option 2: Interactive setup
-caliber config
-
-# Analyze your project and generate agent configs
+# Then run
 caliber init
 ```
 
@@ -37,7 +38,7 @@ If you already have these files, Caliber audits them against your actual codebas
 |---------|-------------|
 | `caliber init` | Scan project and generate agent config |
 | `caliber update` | Re-analyze and regenerate (alias: `regenerate`, `regen`) |
-| `caliber config` | Configure LLM provider, API key, and model |
+| `caliber config` | Configure LLM: Cursor (your seat), API key, and model |
 | `caliber refresh` | Update docs based on recent git changes |
 | `caliber score` | Score your config quality (deterministic, no LLM). Supports `--agent claude\|cursor\|both` |
 | `caliber recommend` | Discover skills from [skills.sh](https://skills.sh) |
@@ -56,10 +57,12 @@ If you already have these files, Caliber audits them against your actual codebas
 
 ## Supported LLM Providers
 
-| Provider | Environment Variable | Notes |
-|----------|---------------------|-------|
-| **Anthropic** | `ANTHROPIC_API_KEY` | Recommended. Claude Sonnet 4.6 default. |
-| **Google Vertex AI** | `VERTEX_PROJECT_ID` or `GCP_PROJECT_ID` | Uses Application Default Credentials (ADC) by default. Region defaults to `us-east5`. Set `VERTEX_REGION` to override, `VERTEX_SA_CREDENTIALS` for service account JSON. |
+| Provider | How to use | Notes |
+|----------|------------|-------|
+| **Claude Code (current seat)** | `caliber config` → "Claude Code", or `CALIBER_USE_CLAUDE_CLI=1` | Uses your Pro/Max/Team login via `claude -p`. No API key; install [Claude Code CLI](https://claude.ai/install) and run `claude` once to log in. |
+| **Cursor (current seat)** | `caliber config` → "Cursor", or `CALIBER_USE_CURSOR_SEAT=1` | Uses your Cursor subscription via [Cursor Agent (ACP)](https://cursor.com/docs/cli/acp). No API key; run `agent login` once if needed. |
+| **Anthropic (Claude)** | `ANTHROPIC_API_KEY` | Claude Sonnet 4.6 default. Get an API key at [console.anthropic.com](https://console.anthropic.com) (same company as Claude Pro/Team/Max; API is separate billing). |
+| **Google Vertex AI** | `VERTEX_PROJECT_ID` or `GCP_PROJECT_ID` | Uses ADC by default. Region `us-east5`. Set `VERTEX_REGION`, `VERTEX_SA_CREDENTIALS` as needed. |
 | **OpenAI** | `OPENAI_API_KEY` | GPT-4.1 default. |
 | **Custom endpoint** | `OPENAI_API_KEY` + `OPENAI_BASE_URL` | Any OpenAI-compatible API (Ollama, vLLM, Together, etc.) |
 
@@ -87,6 +90,14 @@ export VERTEX_PROJECT_ID=my-gcp-project
 export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
 caliber init
 ```
+
+## Flow: install and init
+
+- **Install:** `npm install -g @caliber-ai/caliber` runs the postinstall script and prints the "Get started" message. With **npx** (`npx @caliber-ai/caliber init`), there is no install step; the binary runs from cache.
+- **Config:** User runs `caliber config` (or sets env vars). Config is stored in `~/.caliber/config.json` or taken from `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `VERTEX_PROJECT_ID` / `CALIBER_USE_CLAUDE_CLI` / `CALIBER_USE_CURSOR_SEAT`.
+- **Init:** `caliber init` calls `loadConfig()`: env vars override; if none, it reads `~/.caliber/config.json`. If no config, init prints the options and exits. Otherwise it scans the project, generates config with the chosen LLM (**Claude Code CLI**, Cursor ACP, Anthropic, OpenAI, or Vertex), then review and apply.
+
+See [docs/FLOW.md](docs/FLOW.md) for the full step-by-step.
 
 ## How It Works
 
@@ -138,7 +149,7 @@ caliber learn status     # Check what's been captured
 ## Requirements
 
 - Node.js >= 20
-- An API key for a supported LLM provider
+- An LLM: use your **Claude Code** or **Cursor** subscription (run `caliber config` → Claude Code or Cursor; for Claude Code run `claude` once to log in), or set an API key for Anthropic, OpenAI, or Vertex
 
 ## Contributing
 

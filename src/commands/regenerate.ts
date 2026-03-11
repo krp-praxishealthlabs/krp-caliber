@@ -12,7 +12,7 @@ import { SpinnerMessages, GENERATION_MESSAGES } from '../utils/spinner-messages.
 export async function regenerateCommand(options: { dryRun?: boolean }) {
   const config = loadConfig();
   if (!config) {
-    console.log(chalk.red('No LLM provider configured. Run `caliber config` or set ANTHROPIC_API_KEY.'));
+    console.log(chalk.red('No LLM provider configured. Run `caliber config` (e.g. choose Cursor) or set ANTHROPIC_API_KEY.'));
     throw new Error('__exit__');
   }
 

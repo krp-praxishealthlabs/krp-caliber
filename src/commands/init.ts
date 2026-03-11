@@ -17,6 +17,7 @@ import { installLearningHooks } from '../lib/learning-hooks.js';
 import { writeState, getCurrentHeadSha } from '../lib/state.js';
 import { SpinnerMessages, GENERATION_MESSAGES, REFINE_MESSAGES } from '../utils/spinner-messages.js';
 import { loadConfig } from '../llm/config.js';
+import { runInteractiveProviderSetup } from './interactive-provider-setup.js';
 import { computeLocalScore } from '../scoring/index.js';
 import { displayScoreDelta } from '../scoring/display.js';
 
@@ -51,17 +52,25 @@ export async function initCommand(options: InitOptions) {
   console.log(chalk.dim('  3. Review    You accept, refine, or decline the proposed changes'));
   console.log(chalk.dim('  4. Apply     Config files are written with backups\n'));
 
-  // Step 1: Check LLM config
-  console.log(chalk.hex('#6366f1').bold('  Step 1/4 — Check LLM provider\n'));
-  const config = loadConfig();
+  // Step 1: Check LLM config (or ask on first run)
+  console.log(chalk.hex('#6366f1').bold('  Step 1/4 — How do you want to use Caliber?\n'));
+  let config = loadConfig();
   if (!config) {
-    console.log(chalk.red('  No LLM provider configured.\n'));
-    console.log(chalk.dim('  Set one of these environment variables:'));
-    console.log(chalk.dim('    ANTHROPIC_API_KEY    — for Anthropic Claude'));
-    console.log(chalk.dim('    OPENAI_API_KEY       — for OpenAI or compatible endpoints'));
-    console.log(chalk.dim('    VERTEX_PROJECT_ID    — for Google Vertex AI\n'));
-    console.log(chalk.dim('  Or run `caliber config` for interactive setup.\n'));
-    throw new Error('__exit__');
+    console.log(chalk.dim('  No LLM provider set yet. Choose how to run Caliber:\n'));
+    try {
+      await runInteractiveProviderSetup({
+        selectMessage: 'How do you want to use Caliber? (choose LLM provider)',
+      });
+    } catch (err) {
+      if ((err as Error).message === '__exit__') throw err;
+      throw err;
+    }
+    config = loadConfig();
+    if (!config) {
+      console.log(chalk.red('  Setup was cancelled or failed.\n'));
+      throw new Error('__exit__');
+    }
+    console.log(chalk.green('  ✓ Provider saved. Continuing with init.\n'));
   }
   console.log(chalk.dim(`  Provider: ${config.provider} | Model: ${config.model}\n`));
 

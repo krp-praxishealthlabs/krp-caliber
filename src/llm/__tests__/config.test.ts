@@ -25,6 +25,8 @@ describe('config', () => {
     delete process.env.GCP_REGION;
     delete process.env.VERTEX_SA_CREDENTIALS;
     delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    delete process.env.CALIBER_USE_CURSOR_SEAT;
+    delete process.env.CALIBER_USE_CLAUDE_CLI;
 
     vi.mocked(fs.existsSync).mockReturnValue(false);
   });
@@ -95,6 +97,36 @@ describe('config', () => {
       expect(config?.provider).toBe('anthropic');
     });
 
+    it('returns cursor config when CALIBER_USE_CURSOR_SEAT is set', () => {
+      process.env.CALIBER_USE_CURSOR_SEAT = '1';
+      const config = resolveFromEnv();
+      expect(config).toEqual({
+        provider: 'cursor',
+        model: DEFAULT_MODELS.cursor,
+      });
+    });
+
+    it('returns cursor config when CALIBER_USE_CURSOR_SEAT is "true"', () => {
+      process.env.CALIBER_USE_CURSOR_SEAT = 'true';
+      const config = resolveFromEnv();
+      expect(config?.provider).toBe('cursor');
+    });
+
+    it('returns claude-cli config when CALIBER_USE_CLAUDE_CLI is set', () => {
+      process.env.CALIBER_USE_CLAUDE_CLI = '1';
+      const config = resolveFromEnv();
+      expect(config).toEqual({
+        provider: 'claude-cli',
+        model: DEFAULT_MODELS['claude-cli'],
+      });
+    });
+
+    it('returns claude-cli config when CALIBER_USE_CLAUDE_CLI is "true"', () => {
+      process.env.CALIBER_USE_CLAUDE_CLI = 'true';
+      const config = resolveFromEnv();
+      expect(config?.provider).toBe('claude-cli');
+    });
+
     it('prioritizes ANTHROPIC_API_KEY over VERTEX_PROJECT_ID', () => {
       process.env.ANTHROPIC_API_KEY = 'sk-ant-test';
       process.env.VERTEX_PROJECT_ID = 'my-project';
@@ -156,6 +188,28 @@ describe('config', () => {
         JSON.stringify({ provider: 'gemini', model: 'gemini-2' }) as any
       );
       expect(readConfigFile()).toBeNull();
+    });
+
+    it('parses config file with cursor provider', () => {
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      vi.mocked(fs.readFileSync).mockReturnValue(
+        JSON.stringify({ provider: 'cursor', model: 'default' }) as any
+      );
+      const config = readConfigFile();
+      expect(config?.provider).toBe('cursor');
+      expect(config?.model).toBe('default');
+    });
+
+    it('parses config file with claude-cli provider', () => {
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      vi.mocked(fs.readFileSync).mockReturnValue(
+        JSON.stringify({ provider: 'claude-cli', model: 'default' }) as any
+      );
+      const config = readConfigFile();
+      expect(config?.provider).toBe('claude-cli');
+      expect(config?.model).toBe('default');
     });
   });
 

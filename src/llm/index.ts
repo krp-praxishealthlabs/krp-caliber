@@ -3,6 +3,8 @@ import { loadConfig } from './config.js';
 import { AnthropicProvider } from './anthropic.js';
 import { VertexProvider } from './vertex.js';
 import { OpenAICompatProvider } from './openai-compat.js';
+import { CursorAcpProvider, isCursorAgentAvailable } from './cursor-acp.js';
+import { ClaudeCliProvider, isClaudeCliAvailable } from './claude-cli.js';
 import { parseJsonResponse, extractJson, estimateTokens } from './utils.js';
 
 export type { LLMProvider, LLMConfig, LLMCallOptions };
@@ -21,6 +23,22 @@ function createProvider(config: LLMConfig): LLMProvider {
       return new VertexProvider(config);
     case 'openai':
       return new OpenAICompatProvider(config);
+    case 'cursor': {
+      if (!isCursorAgentAvailable()) {
+        throw new Error(
+          'Cursor provider requires the Cursor Agent CLI. Install it from https://cursor.com/install then run `agent login`. Alternatively set ANTHROPIC_API_KEY or another provider.'
+        );
+      }
+      return new CursorAcpProvider(config);
+    }
+    case 'claude-cli': {
+      if (!isClaudeCliAvailable()) {
+        throw new Error(
+          'Claude Code provider requires the Claude Code CLI. Install it from https://claude.ai/install (or run `claude` once and log in). Alternatively set ANTHROPIC_API_KEY or choose another provider.'
+        );
+      }
+      return new ClaudeCliProvider(config);
+    }
     default:
       throw new Error(`Unknown provider: ${config.provider}`);
   }
@@ -32,7 +50,7 @@ export function getProvider(): LLMProvider {
   const config = loadConfig();
   if (!config) {
     throw new Error(
-      'No LLM provider configured. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or VERTEX_PROJECT_ID as an environment variable, or run `caliber config` to configure.'
+      'No LLM provider configured. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or VERTEX_PROJECT_ID; or run `caliber config` and choose Cursor or Claude Code; or set CALIBER_USE_CURSOR_SEAT=1 / CALIBER_USE_CLAUDE_CLI=1.'
     );
   }
 
@@ -47,7 +65,7 @@ export function getConfig(): LLMConfig {
   const config = loadConfig();
   if (!config) {
     throw new Error(
-      'No LLM provider configured. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or VERTEX_PROJECT_ID as an environment variable, or run `caliber config` to configure.'
+      'No LLM provider configured. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or VERTEX_PROJECT_ID; or run `caliber config` and choose Cursor or Claude Code; or set CALIBER_USE_CURSOR_SEAT=1 / CALIBER_USE_CLAUDE_CLI=1.'
     );
   }
 
