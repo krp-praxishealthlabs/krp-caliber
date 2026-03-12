@@ -7,6 +7,7 @@ import { checkAccuracy } from './checks/accuracy.js';
 import { checkFreshness } from './checks/freshness.js';
 import { checkBonus } from './checks/bonus.js';
 import { computeGrade, CURSOR_ONLY_CHECKS, CLAUDE_ONLY_CHECKS, BOTH_ONLY_CHECKS } from './constants.js';
+import { getDismissedIds } from './dismissed.js';
 
 export type TargetAgent = 'claude' | 'cursor' | 'both';
 export type CheckCategory = 'existence' | 'quality' | 'coverage' | 'accuracy' | 'freshness' | 'bonus';
@@ -93,7 +94,9 @@ export function computeLocalScore(dir: string, targetAgent?: TargetAgent): Score
     ...checkBonus(dir),
   ];
 
-  const checks = filterChecksForTarget(allChecks, target);
+  const dismissed = getDismissedIds();
+  const checks = filterChecksForTarget(allChecks, target)
+    .filter(c => !dismissed.has(c.id));
   const maxPossible = checks.reduce((s, c) => s + c.maxPoints, 0);
   const earned = checks.reduce((s, c) => s + c.earnedPoints, 0);
 

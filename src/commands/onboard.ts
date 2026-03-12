@@ -20,7 +20,10 @@ import { loadConfig } from '../llm/config.js';
 import { llmJsonCall } from '../llm/index.js';
 import { runInteractiveProviderSetup } from './interactive-provider-setup.js';
 import { computeLocalScore } from '../scoring/index.js';
+import type { Check } from '../scoring/index.js';
 import { displayScoreSummary, displayScoreDelta } from '../scoring/display.js';
+import { readDismissedChecks, writeDismissedChecks } from '../scoring/dismissed.js';
+import type { DismissedCheck } from '../scoring/dismissed.js';
 import type { FailingCheck, PassingCheck } from '../ai/generate.js';
 
 type TargetAgent = 'claude' | 'cursor' | 'both';
@@ -97,7 +100,20 @@ export async function initCommand(options: InitOptions) {
   // Step 3: Determine target agent
   const targetAgent = options.agent || await promptAgent();
 
-  // Baseline score before generation
+  // Evaluate which failing checks aren't applicable to this project
+  const preScore = computeLocalScore(process.cwd(), targetAgent);
+  const failingForDismissal = preScore.checks.filter(c => !c.passed && c.maxPoints > 0);
+  if (failingForDismissal.length > 0) {
+    const newDismissals = await evaluateDismissals(failingForDismissal, fingerprint);
+    if (newDismissals.length > 0) {
+      const existing = readDismissedChecks();
+      const existingIds = new Set(existing.map(d => d.id));
+      const merged = [...existing, ...newDismissals.filter(d => !existingIds.has(d.id))];
+      writeDismissedChecks(merged);
+    }
+  }
+
+  // Baseline score (after dismissals applied)
   const baselineScore = computeLocalScore(process.cwd(), targetAgent);
   displayScoreSummary(baselineScore);
 
@@ -110,7 +126,7 @@ export async function initCommand(options: InitOptions) {
   // Score gating: skip generation if already perfect, targeted fix if close
   if (hasExistingConfig && baselineScore.score === 100) {
     console.log(chalk.bold.green('  Your setup is already optimal — nothing to change.\n'));
-    console.log(chalk.dim('  Run `caliber onboard --force` to regenerate anyway.\n'));
+    console.log(chalk.dim('  Run ') + chalk.hex('#83D1EB')('caliber onboard --force') + chalk.dim(' to regenerate anyway.\n'));
     if (!options.force) return;
   }
 
@@ -304,7 +320,7 @@ export async function initCommand(options: InitOptions) {
     const hookResult = installHook();
     if (hookResult.installed) {
       console.log(`  ${chalk.green('✓')} Claude Code hook installed — docs update on session end`);
-      console.log(chalk.dim('    Run `caliber hooks remove` to disable'));
+      console.log(chalk.dim('    Run ') + chalk.hex('#83D1EB')('caliber hooks remove') + chalk.dim(' to disable'));
     } else if (hookResult.alreadyInstalled) {
       console.log(chalk.dim('  Claude Code hook already installed'));
     }
@@ -312,7 +328,7 @@ export async function initCommand(options: InitOptions) {
     const learnResult = installLearningHooks();
     if (learnResult.installed) {
       console.log(`  ${chalk.green('✓')} Learning hooks installed — session insights captured automatically`);
-      console.log(chalk.dim('    Run `caliber learn remove` to disable'));
+      console.log(chalk.dim('    Run ') + chalk.hex('#83D1EB')('caliber learn remove') + chalk.dim(' to disable'));
     } else if (learnResult.alreadyInstalled) {
       console.log(chalk.dim('  Learning hooks already installed'));
     }
@@ -322,7 +338,7 @@ export async function initCommand(options: InitOptions) {
     const precommitResult = installPreCommitHook();
     if (precommitResult.installed) {
       console.log(`  ${chalk.green('✓')} Pre-commit hook installed — docs refresh before each commit`);
-      console.log(chalk.dim('    Run `caliber hooks remove-precommit` to disable'));
+      console.log(chalk.dim('    Run ') + chalk.hex('#83D1EB')('caliber hooks remove-precommit') + chalk.dim(' to disable'));
     } else if (precommitResult.alreadyInstalled) {
       console.log(chalk.dim('  Pre-commit hook already installed'));
     } else {
@@ -331,7 +347,7 @@ export async function initCommand(options: InitOptions) {
   }
 
   if (hookChoice === 'skip') {
-    console.log(chalk.dim('  Skipped auto-refresh hooks. Run `caliber hooks install` later to enable.'));
+    console.log(chalk.dim('  Skipped auto-refresh hooks. Run ') + chalk.hex('#83D1EB')('caliber hooks install') + chalk.dim(' later to enable.'));
   }
 
   // Show score improvement
@@ -347,14 +363,14 @@ export async function initCommand(options: InitOptions) {
         console.log(chalk.dim(`  Reverted ${restored.length + removed.length} file${restored.length + removed.length === 1 ? '' : 's'} from backup.`));
       }
     } catch { /* best effort */ }
-    console.log(chalk.dim('  Run `caliber onboard --force` to override.\n'));
+    console.log(chalk.dim('  Run ') + chalk.hex('#83D1EB')('caliber onboard --force') + chalk.dim(' to override.\n'));
     return;
   }
 
   displayScoreDelta(baselineScore, afterScore);
 
   console.log(chalk.bold.green('  Onboarding complete! Your project is ready for AI-assisted development.'));
-  console.log(chalk.dim('  Run `caliber undo` to revert changes.\n'));
+  console.log(chalk.dim('  Run ') + chalk.hex('#83D1EB')('caliber undo') + chalk.dim(' to revert changes.\n'));
 
   console.log(chalk.bold('  Next steps:\n'));
   console.log(`    ${title('caliber score')}        See your full config breakdown`);
@@ -439,6 +455,44 @@ Return {"valid": true} or {"valid": false}. Nothing else.`,
   } catch {
     // If the check fails, let it through — better to try than block
     return true;
+  }
+}
+
+async function evaluateDismissals(
+  failingChecks: readonly Check[],
+  fingerprint: { languages: string[]; frameworks: string[] },
+): Promise<DismissedCheck[]> {
+  const fastModel = process.env.ANTHROPIC_SMALL_FAST_MODEL;
+  const checkList = failingChecks.map(c => ({
+    id: c.id,
+    name: c.name,
+    suggestion: c.suggestion,
+  }));
+
+  try {
+    const result = await llmJsonCall<{ dismissed: Array<{ id: string; reason: string }> }>({
+      system: `You evaluate whether scoring checks are applicable to a project.
+Given the project's languages/frameworks and a list of failing checks, return which checks are NOT applicable.
+
+Only dismiss checks that truly don't apply — e.g. "Build/test/lint commands" for a pure Terraform/HCL repo with no build system.
+Do NOT dismiss checks that could reasonably apply even if the project doesn't use them yet.
+
+Return {"dismissed": [{"id": "check_id", "reason": "brief reason"}]} or {"dismissed": []} if all apply.`,
+      prompt: `Languages: ${fingerprint.languages.join(', ') || 'none'}
+Frameworks: ${fingerprint.frameworks.join(', ') || 'none'}
+
+Failing checks:
+${JSON.stringify(checkList, null, 2)}`,
+      maxTokens: 200,
+      ...(fastModel ? { model: fastModel } : {}),
+    });
+
+    if (!Array.isArray(result.dismissed)) return [];
+    return result.dismissed
+      .filter(d => d.id && d.reason && failingChecks.some(c => c.id === d.id))
+      .map(d => ({ id: d.id, reason: d.reason, dismissedAt: new Date().toISOString() }));
+  } catch {
+    return [];
   }
 }
 

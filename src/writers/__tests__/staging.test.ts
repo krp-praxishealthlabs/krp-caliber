@@ -38,10 +38,14 @@ describe('staging', () => {
 
     it('copies existing files to current dir and counts as modified', () => {
       // First call: cleanup existsSync for staged dir = false
-      // Then for each file: check original exists
+      // Then for each file: existsSync is called twice (normalize check + staging check)
       vi.mocked(fs.existsSync)
         .mockReturnValueOnce(false) // cleanup: staged dir doesn't exist
-        .mockReturnValueOnce(true); // CLAUDE.md exists in project
+        .mockReturnValueOnce(true)  // normalize: CLAUDE.md exists in project
+        .mockReturnValueOnce(true); // staging: CLAUDE.md exists in project
+
+      // Existing file has different content so it counts as modified
+      vi.mocked(fs.readFileSync).mockReturnValueOnce('# Old content');
 
       const files = [
         { path: 'CLAUDE.md', content: '# Updated' },

@@ -22,12 +22,12 @@ export async function statusCommand(options: { json?: boolean }) {
   if (config) {
     console.log(`  LLM: ${chalk.green(config.provider)} (${config.model})`);
   } else {
-    console.log(`  LLM: ${chalk.yellow('Not configured')} — run \`caliber config\``);
+    console.log(`  LLM: ${chalk.yellow('Not configured')} — run ${chalk.hex('#83D1EB')('caliber config')}`);
   }
 
   if (!manifest) {
     console.log(`  Setup: ${chalk.dim('No setup applied')}`);
-    console.log(chalk.dim('\n  Run `caliber onboard` to get started.\n'));
+    console.log(chalk.dim('\n  Run ') + chalk.hex('#83D1EB')('caliber onboard') + chalk.dim(' to get started.\n'));
     return;
   }
 

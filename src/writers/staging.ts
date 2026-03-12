@@ -20,6 +20,15 @@ export interface StageResult {
   stagedFiles: StagedFile[];
 }
 
+function normalizeContent(content: string): string {
+  return content
+    .split('\n')
+    .map(line => line.trimEnd())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 export function stageFiles(
   files: Array<{ path: string; content: string }>,
   projectDir: string
@@ -31,11 +40,20 @@ export function stageFiles(
   const stagedFiles: StagedFile[] = [];
 
   for (const file of files) {
+    const originalPath = path.join(projectDir, file.path);
+
+    // Skip files where the only changes are whitespace/formatting
+    if (fs.existsSync(originalPath)) {
+      const existing = fs.readFileSync(originalPath, 'utf-8');
+      if (normalizeContent(existing) === normalizeContent(file.content)) {
+        continue;
+      }
+    }
+
     const proposedPath = path.join(PROPOSED_DIR, file.path);
     fs.mkdirSync(path.dirname(proposedPath), { recursive: true });
     fs.writeFileSync(proposedPath, file.content);
 
-    const originalPath = path.join(projectDir, file.path);
     if (fs.existsSync(originalPath)) {
       const currentPath = path.join(CURRENT_DIR, file.path);
       fs.mkdirSync(path.dirname(currentPath), { recursive: true });

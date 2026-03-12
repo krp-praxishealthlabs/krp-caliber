@@ -134,7 +134,7 @@ export function displayScoreSummary(result: ScoreResult): void {
     }
     const remaining = failing.length - shown.length;
     const moreText = remaining > 0 ? ` (+${remaining} more)` : '';
-    console.log(chalk.dim(`\n  Run ${chalk.reset('caliber score')} for details.${moreText}`));
+    console.log(chalk.dim(`\n  Run ${chalk.hex('#83D1EB')('caliber score')} for details.${moreText}`));
   }
   console.log('');
 }

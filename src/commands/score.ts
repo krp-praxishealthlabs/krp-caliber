@@ -31,11 +31,11 @@ export async function scoreCommand(options: ScoreOptions) {
   console.log(separator);
 
   if (result.score < 40) {
-    console.log(chalk.gray('  Run ') + chalk.hex('#f97316')('caliber onboard') + chalk.gray(' to generate a complete, optimized setup.'));
+    console.log(chalk.gray('  Run ') + chalk.hex('#83D1EB')('caliber onboard') + chalk.gray(' to generate a complete, optimized setup.'));
   } else if (result.score < 70) {
-    console.log(chalk.gray('  Run ') + chalk.hex('#f97316')('caliber onboard') + chalk.gray(' to improve your setup.'));
+    console.log(chalk.gray('  Run ') + chalk.hex('#83D1EB')('caliber onboard') + chalk.gray(' to improve your setup.'));
   } else {
-    console.log(chalk.green('  Looking good!') + chalk.gray(' Run ') + chalk.hex('#f97316')('caliber update') + chalk.gray(' to keep it fresh.'));
+    console.log(chalk.green('  Looking good!') + chalk.gray(' Run ') + chalk.hex('#83D1EB')('caliber update') + chalk.gray(' to keep it fresh.'));
   }
   console.log('');
 }

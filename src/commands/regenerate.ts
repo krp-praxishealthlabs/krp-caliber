@@ -12,13 +12,13 @@ import { SpinnerMessages, GENERATION_MESSAGES } from '../utils/spinner-messages.
 export async function regenerateCommand(options: { dryRun?: boolean }) {
   const config = loadConfig();
   if (!config) {
-    console.log(chalk.red('No LLM provider configured. Run `caliber config` (e.g. choose Cursor) or set ANTHROPIC_API_KEY.'));
+    console.log(chalk.red('No LLM provider configured. Run ') + chalk.hex('#83D1EB')('caliber config') + chalk.red(' (e.g. choose Cursor) or set ANTHROPIC_API_KEY.'));
     throw new Error('__exit__');
   }
 
   const manifest = readManifest();
   if (!manifest) {
-    console.log(chalk.yellow('No existing setup found. Run `caliber onboard` first.'));
+    console.log(chalk.yellow('No existing setup found. Run ') + chalk.hex('#83D1EB')('caliber onboard') + chalk.yellow(' first.'));
     throw new Error('__exit__');
   }
 

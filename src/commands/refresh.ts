@@ -119,7 +119,7 @@ export async function refreshCommand(options: RefreshOptions) {
     const config = loadConfig();
     if (!config) {
       if (quiet) return;
-      console.log(chalk.red('No LLM provider configured. Run `caliber config` (e.g. choose Cursor) or set an API key.'));
+      console.log(chalk.red('No LLM provider configured. Run ') + chalk.hex('#83D1EB')('caliber config') + chalk.red(' (e.g. choose Cursor) or set an API key.'));
       throw new Error('__exit__');
     }
 
