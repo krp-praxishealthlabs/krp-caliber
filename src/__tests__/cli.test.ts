@@ -23,7 +23,7 @@ describe('cli command registration', () => {
     const names = program.commands.map((c) => c.name());
     expect(names).toEqual(
       expect.arrayContaining([
-        'init', 'undo', 'status', 'regenerate',
+        'onboard', 'undo', 'status', 'regenerate',
         'config', 'recommend', 'score',
         'refresh', 'hooks', 'learn',
       ])

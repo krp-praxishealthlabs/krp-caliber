@@ -42,22 +42,20 @@ export async function initCommand(options: InitOptions) {
   ╚██████╗██║  ██║███████╗██║██████╔╝███████╗██║  ██║
    ╚═════╝╚═╝  ╚═╝╚══════╝╚═╝╚═════╝ ╚══════╝╚═╝  ╚═╝
   `));
-  console.log(chalk.dim('  Configure your coding agent environment\n'));
+  console.log(chalk.dim('  Onboard your project for AI-assisted development\n'));
 
-  console.log(title.bold('  What is Caliber?\n'));
-  console.log(chalk.dim('  Caliber audits your AI agent configurations and suggests targeted'));
-  console.log(chalk.dim('  improvements. It analyzes CLAUDE.md, .cursorrules, and skills'));
-  console.log(chalk.dim('  against your actual codebase — keeping what works, fixing'));
-  console.log(chalk.dim('  what\'s stale, and adding what\'s missing.\n'));
+  console.log(title.bold('  Welcome to Caliber\n'));
+  console.log(chalk.dim('  Caliber analyzes your codebase and creates tailored config files'));
+  console.log(chalk.dim('  so your AI coding agents understand your project from day one.\n'));
 
-  console.log(title.bold('  How it works:\n'));
-  console.log(chalk.dim('  1. Scan      Analyze your code, dependencies, and existing configs'));
-  console.log(chalk.dim('  2. Generate  AI creates or improves config files for your project'));
-  console.log(chalk.dim('  3. Review    You accept, refine, or decline the proposed changes'));
-  console.log(chalk.dim('  4. Apply     Config files are written with backups\n'));
+  console.log(title.bold('  How onboarding works:\n'));
+  console.log(chalk.dim('  1. Connect   Set up your LLM provider'));
+  console.log(chalk.dim('  2. Discover  Analyze your code, dependencies, and structure'));
+  console.log(chalk.dim('  3. Generate  Create config files tailored to your project'));
+  console.log(chalk.dim('  4. Review    Preview, refine, and apply the changes\n'));
 
-  // Step 1: Check LLM config (or ask on first run)
-  console.log(title.bold('  Step 1/4 — How do you want to use Caliber?\n'));
+  // Step 1: Connect LLM provider
+  console.log(title.bold('  Step 1/4 — Connect your LLM\n'));
   let config = loadConfig();
   if (!config) {
     console.log(chalk.dim('  No LLM provider set yet. Choose how to run Caliber:\n'));
@@ -74,7 +72,7 @@ export async function initCommand(options: InitOptions) {
       console.log(chalk.red('  Setup was cancelled or failed.\n'));
       throw new Error('__exit__');
     }
-    console.log(chalk.green('  ✓ Provider saved. Continuing with init.\n'));
+    console.log(chalk.green('  ✓ Provider saved. Let\'s continue.\n'));
   }
   const displayModel = config.model === 'default' && config.provider === 'claude-cli'
     ? process.env.ANTHROPIC_MODEL || 'default (inherited from Claude Code)'
@@ -85,9 +83,9 @@ export async function initCommand(options: InitOptions) {
     : `  Provider: ${config.provider} | Model: ${displayModel}`;
   console.log(chalk.dim(modelLine + '\n'));
 
-  // Step 2: Collect fingerprint
-  console.log(title.bold('  Step 2/4 — Scan project\n'));
-  console.log(chalk.dim('  Detecting languages, dependencies, file structure, and existing configs.\n'));
+  // Step 2: Discover project
+  console.log(title.bold('  Step 2/4 — Discover your project\n'));
+  console.log(chalk.dim('  Learning about your languages, dependencies, structure, and existing configs.\n'));
   const spinner = ora('Analyzing project...').start();
   const fingerprint = collectFingerprint(process.cwd());
   await enrichFingerprintWithLLM(fingerprint, process.cwd());
@@ -112,7 +110,7 @@ export async function initCommand(options: InitOptions) {
   // Score gating: skip generation if already perfect, targeted fix if close
   if (hasExistingConfig && baselineScore.score === 100) {
     console.log(chalk.bold.green('  Your setup is already optimal — nothing to change.\n'));
-    console.log(chalk.dim('  Run `caliber init --force` to regenerate anyway.\n'));
+    console.log(chalk.dim('  Run `caliber onboard --force` to regenerate anyway.\n'));
     if (!options.force) return;
   }
 
@@ -137,20 +135,20 @@ export async function initCommand(options: InitOptions) {
     currentScore = baselineScore.score;
 
     if (failingChecks.length > 0) {
-      console.log(title.bold('  Step 3/4 — Targeted fixes\n'));
-      console.log(chalk.dim(`  Score is ${baselineScore.score}/100 — only fixing ${failingChecks.length} remaining issue${failingChecks.length === 1 ? '' : 's'}:\n`));
+      console.log(title.bold('  Step 3/4 — Fine-tuning\n'));
+      console.log(chalk.dim(`  Your setup scores ${baselineScore.score}/100 — fixing ${failingChecks.length} remaining issue${failingChecks.length === 1 ? '' : 's'}:\n`));
       for (const check of failingChecks) {
         console.log(chalk.dim(`    • ${check.name}`));
       }
       console.log('');
     }
   } else if (hasExistingConfig) {
-    console.log(title.bold('  Step 3/4 — Auditing your configs\n'));
-    console.log(chalk.dim('  AI is reviewing your existing configs against your codebase'));
-    console.log(chalk.dim('  and suggesting improvements.\n'));
+    console.log(title.bold('  Step 3/4 — Improve your setup\n'));
+    console.log(chalk.dim('  Reviewing your existing configs against your codebase'));
+    console.log(chalk.dim('  and preparing improvements.\n'));
   } else {
-    console.log(title.bold('  Step 3/4 — Generating configs\n'));
-    console.log(chalk.dim('  AI is creating agent config files tailored to your project.\n'));
+    console.log(title.bold('  Step 3/4 — Build your agent setup\n'));
+    console.log(chalk.dim('  Creating config files tailored to your project.\n'));
   }
   console.log(chalk.dim('  This can take a couple of minutes depending on your model and provider.\n'));
 
@@ -216,8 +214,8 @@ export async function initCommand(options: InitOptions) {
     content: summarizeSetup('Initial generation', generatedSetup),
   });
 
-  // Step 5: Accept / Refine / Decline with staging
-  console.log(title.bold('  Step 4/4 — Review\n'));
+  // Step 4: Review and apply
+  console.log(title.bold('  Step 4/4 — Review and apply\n'));
 
   const setupFiles = collectSetupFiles(generatedSetup);
   const staged = stageFiles(setupFiles, process.cwd());
@@ -285,13 +283,6 @@ export async function initCommand(options: InitOptions) {
     throw new Error('__exit__');
   }
 
-  // Generate AGENTS.md if it doesn't exist
-  if (!fs.existsSync('AGENTS.md')) {
-    const agentsContent = '# AGENTS.md\n\nThis project uses AI coding agents. See CLAUDE.md for Claude Code configuration and .cursor/rules/ for Cursor rules.\n';
-    fs.writeFileSync('AGENTS.md', agentsContent);
-    console.log(`  ${chalk.green('✓')} AGENTS.md`);
-  }
-
   // Ensure permissions.allow exists in .claude/settings.json
   ensurePermissions();
 
@@ -304,6 +295,9 @@ export async function initCommand(options: InitOptions) {
   });
 
   // Prompt user for auto-refresh hook preference
+  console.log('');
+  console.log(title.bold('  Keep your configs fresh\n'));
+  console.log(chalk.dim('  Caliber can automatically update your agent configs when your code changes.\n'));
   const hookChoice = await promptHookType(targetAgent);
 
   if (hookChoice === 'claude' || hookChoice === 'both') {
@@ -353,16 +347,18 @@ export async function initCommand(options: InitOptions) {
         console.log(chalk.dim(`  Reverted ${restored.length + removed.length} file${restored.length + removed.length === 1 ? '' : 's'} from backup.`));
       }
     } catch { /* best effort */ }
-    console.log(chalk.dim('  Run `caliber init --force` to override.\n'));
+    console.log(chalk.dim('  Run `caliber onboard --force` to override.\n'));
     return;
   }
 
   displayScoreDelta(baselineScore, afterScore);
 
-  console.log(chalk.bold.green('  Setup complete! Your coding agent is now configured.'));
+  console.log(chalk.bold.green('  Onboarding complete! Your project is ready for AI-assisted development.'));
   console.log(chalk.dim('  Run `caliber undo` to revert changes.\n'));
 
   console.log(chalk.bold('  Next steps:\n'));
+  console.log(`    ${title('caliber score')}        See your full config breakdown`);
+  console.log(`    ${title('caliber recommend')}    Discover community skills for your stack`);
   console.log(`    ${title('caliber undo')}         Revert all changes from this run`);
   console.log('');
 }
@@ -811,6 +807,13 @@ function printSetupSummary(setup: Record<string, unknown>) {
     }
   }
 
+  // AGENTS.md (added by collectSetupFiles if missing)
+  if (!fs.existsSync('AGENTS.md')) {
+    console.log(`  ${chalk.green('+')} ${chalk.bold('AGENTS.md')}`);
+    console.log(chalk.dim('    Cross-agent coordination file'));
+    console.log('');
+  }
+
   if (Array.isArray(deletions) && deletions.length > 0) {
     for (const del of deletions) {
       console.log(`  ${chalk.red('-')} ${chalk.bold(del.filePath)}`);
@@ -884,6 +887,19 @@ function collectSetupFiles(setup: Record<string, unknown>): Array<{ path: string
         files.push({ path: `.cursor/rules/${rule.filename}`, content: rule.content });
       }
     }
+  }
+
+  // Include AGENTS.md if it doesn't already exist on disk
+  if (!fs.existsSync('AGENTS.md')) {
+    const agentRefs: string[] = [];
+    if (claude) agentRefs.push('See `CLAUDE.md` for Claude Code configuration.');
+    if (cursor) agentRefs.push('See `.cursor/rules/` for Cursor rules.');
+    if (agentRefs.length === 0) agentRefs.push('See CLAUDE.md and .cursor/rules/ for agent configurations.');
+
+    files.push({
+      path: 'AGENTS.md',
+      content: `# AGENTS.md\n\nThis project uses AI coding agents configured by [Caliber](https://github.com/rely-ai-org/caliber).\n\n${agentRefs.join(' ')}\n`,
+    });
   }
 
   return files;

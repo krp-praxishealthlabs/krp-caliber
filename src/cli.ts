@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { initCommand } from './commands/init.js';
+import { initCommand } from './commands/onboard.js';
 import { undoCommand } from './commands/undo.js';
 import { statusCommand } from './commands/status.js';
 import { regenerateCommand } from './commands/regenerate.js';
@@ -34,8 +34,9 @@ program
   .version(displayVersion);
 
 program
-  .command('init')
-  .description('Initialize coding agent setup for this project')
+  .command('onboard')
+  .alias('init')
+  .description('Onboard your project for AI-assisted development')
   .option('--agent <type>', 'Target agent: claude, cursor, or both')
   .option('--dry-run', 'Preview changes without writing files')
   .option('--force', 'Overwrite existing setup without prompting')

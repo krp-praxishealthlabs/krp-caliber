@@ -18,7 +18,7 @@ export async function regenerateCommand(options: { dryRun?: boolean }) {
 
   const manifest = readManifest();
   if (!manifest) {
-    console.log(chalk.yellow('No existing setup found. Run `caliber init` first.'));
+    console.log(chalk.yellow('No existing setup found. Run `caliber onboard` first.'));
     throw new Error('__exit__');
   }
 

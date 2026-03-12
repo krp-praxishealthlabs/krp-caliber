@@ -1,10 +1,14 @@
-# Caliber
+<p align="center">
+  <img src="assets/social-preview.svg" alt="Caliber" width="640">
+</p>
 
-[![npm version](https://img.shields.io/npm/v/@rely-ai/caliber)](https://www.npmjs.com/package/@rely-ai/caliber)
-[![license](https://img.shields.io/npm/l/@rely-ai/caliber)](./LICENSE)
-[![node](https://img.shields.io/node/v/@rely-ai/caliber)](https://nodejs.org)
+<p align="center">
+  <a href="https://www.npmjs.com/package/@rely-ai/caliber"><img src="https://img.shields.io/npm/v/@rely-ai/caliber" alt="npm version"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/npm/l/@rely-ai/caliber" alt="license"></a>
+  <a href="https://nodejs.org"><img src="https://img.shields.io/node/v/@rely-ai/caliber" alt="node"></a>
+</p>
 
-**Analyze your codebase. Generate optimized AI agent configs. One command.**
+<p align="center"><strong>Analyze your codebase. Generate optimized AI agent configs. One command.</strong></p>
 
 Caliber scans your project — languages, frameworks, dependencies, file structure — and generates tailored config files for Claude Code and Cursor. If configs already exist, it audits them and suggests improvements.
 
@@ -13,7 +17,7 @@ Caliber scans your project — languages, frameworks, dependencies, file structu
 ## Quick Start
 
 ```bash
-npx @rely-ai/caliber init
+npx @rely-ai/caliber onboard
 ```
 
 That's it. On first run, Caliber walks you through provider setup interactively.
@@ -22,19 +26,19 @@ Or install globally:
 
 ```bash
 npm install -g @rely-ai/caliber
-caliber init
+caliber onboard
 ```
 
 > **Already have an API key?** Skip the interactive setup:
 > ```bash
 > export ANTHROPIC_API_KEY=sk-ant-...
-> npx @rely-ai/caliber init
+> npx @rely-ai/caliber onboard
 > ```
 
 ## How It Works
 
 ```
-caliber init
+caliber onboard
 │
 ├─ 1. Scan        Analyze languages, frameworks, dependencies, file structure,
 │                  and existing agent configs in your project
@@ -64,16 +68,16 @@ If these files already exist, Caliber audits them against your actual codebase a
 
 | Command | Description |
 |---------|-------------|
-| `caliber init` | Scan project, generate/audit agent configs, review and apply |
+| `caliber onboard` | Onboard your project for AI-assisted development |
 | `caliber score` | Score your config quality (deterministic, no LLM needed) |
 | `caliber recommend` | Discover and install skills from [skills.sh](https://skills.sh) |
 | `caliber config` | Configure LLM provider, API key, and model |
 
 ```bash
-caliber init --agent claude      # Target Claude Code only
-caliber init --agent cursor      # Target Cursor only
-caliber init --agent both        # Target both
-caliber init --dry-run           # Preview without writing files
+caliber onboard --agent claude      # Target Claude Code only
+caliber onboard --agent cursor      # Target Cursor only
+caliber onboard --agent both        # Target both
+caliber onboard --dry-run           # Preview without writing files
 caliber score --json             # Machine-readable output
 ```
 
