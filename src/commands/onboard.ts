@@ -24,6 +24,7 @@ import type { Check } from '../scoring/index.js';
 import { displayScoreSummary, displayScoreDelta } from '../scoring/display.js';
 import { readDismissedChecks, writeDismissedChecks } from '../scoring/dismissed.js';
 import type { DismissedCheck } from '../scoring/dismissed.js';
+import { discoverAndInstallMcps } from '../mcp/index.js';
 import type { FailingCheck, PassingCheck } from '../ai/generate.js';
 
 type TargetAgent = 'claude' | 'cursor' | 'both';
@@ -297,6 +298,20 @@ export async function initCommand(options: InitOptions) {
     writeSpinner.fail('Failed to write files');
     console.error(chalk.red(err instanceof Error ? err.message : 'Unknown error'));
     throw new Error('__exit__');
+  }
+
+  // MCP Server Discovery
+  try {
+    const mcpResult = await discoverAndInstallMcps(targetAgent, fingerprint, process.cwd());
+    if (mcpResult.installed > 0) {
+      console.log(chalk.bold(`\n  ${mcpResult.installed} MCP server${mcpResult.installed > 1 ? 's' : ''} configured`));
+      for (const name of mcpResult.names) {
+        console.log(`  ${chalk.green('✓')} ${name}`);
+      }
+    }
+  } catch (err) {
+    // MCP discovery is optional — don't fail init
+    console.log(chalk.dim('  MCP discovery skipped: ' + (err instanceof Error ? err.message : 'unknown error')));
   }
 
   // Ensure permissions.allow exists in .claude/settings.json
