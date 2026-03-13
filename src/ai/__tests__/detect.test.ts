@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { detectFrameworks } from '../detect.js';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { detectProjectStack } from '../detect.js';
 
 const mockLlmJsonCall = vi.fn();
 
@@ -7,46 +7,61 @@ vi.mock('../../llm/index.js', () => ({
   llmJsonCall: (...args: unknown[]) => mockLlmJsonCall(...args),
 }));
 
-describe('detectFrameworks', () => {
+describe('detectProjectStack', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockLlmJsonCall.mockResolvedValue({ languages: ['TypeScript'], frameworks: ['Express'] });
+    delete process.env.CALIBER_FAST_MODEL;
+    delete process.env.ANTHROPIC_SMALL_FAST_MODEL;
+    mockLlmJsonCall.mockResolvedValue({ languages: ['TypeScript'], frameworks: ['Express'], tools: ['PostgreSQL'] });
   });
 
-  it('returns languages and frameworks from LLM', async () => {
-    const result = await detectFrameworks(['src/index.ts'], {});
+  it('returns languages, frameworks, and tools from LLM', async () => {
+    const result = await detectProjectStack(['src/index.ts'], {});
     expect(result.languages).toEqual(['TypeScript']);
     expect(result.frameworks).toEqual(['Express']);
+    expect(result.tools).toEqual(['PostgreSQL']);
   });
 
-  it('passes ANTHROPIC_SMALL_FAST_MODEL as model override when set', async () => {
-    const orig = process.env.ANTHROPIC_SMALL_FAST_MODEL;
+  it('passes CALIBER_FAST_MODEL as model override when set', async () => {
+    process.env.CALIBER_FAST_MODEL = 'gpt-4.1-mini';
+
+    await detectProjectStack(['src/index.ts'], {});
+
+    const callArgs = mockLlmJsonCall.mock.calls[0][0];
+    expect(callArgs.model).toBe('gpt-4.1-mini');
+  });
+
+  it('falls back to ANTHROPIC_SMALL_FAST_MODEL for backwards compat', async () => {
     process.env.ANTHROPIC_SMALL_FAST_MODEL = 'claude-haiku-4-5';
 
-    await detectFrameworks(['src/index.ts'], {});
+    await detectProjectStack(['src/index.ts'], {});
 
     const callArgs = mockLlmJsonCall.mock.calls[0][0];
     expect(callArgs.model).toBe('claude-haiku-4-5');
-
-    process.env.ANTHROPIC_SMALL_FAST_MODEL = orig;
   });
 
-  it('does not pass model override when ANTHROPIC_SMALL_FAST_MODEL is not set', async () => {
-    const orig = process.env.ANTHROPIC_SMALL_FAST_MODEL;
-    delete process.env.ANTHROPIC_SMALL_FAST_MODEL;
+  it('prefers CALIBER_FAST_MODEL over ANTHROPIC_SMALL_FAST_MODEL', async () => {
+    process.env.CALIBER_FAST_MODEL = 'gpt-4.1-mini';
+    process.env.ANTHROPIC_SMALL_FAST_MODEL = 'claude-haiku-4-5';
 
-    await detectFrameworks(['src/index.ts'], {});
+    await detectProjectStack(['src/index.ts'], {});
+
+    const callArgs = mockLlmJsonCall.mock.calls[0][0];
+    expect(callArgs.model).toBe('gpt-4.1-mini');
+  });
+
+  it('does not pass model override when no fast model env is set', async () => {
+    await detectProjectStack(['src/index.ts'], {});
 
     const callArgs = mockLlmJsonCall.mock.calls[0][0];
     expect(callArgs.model).toBeUndefined();
-
-    if (orig) process.env.ANTHROPIC_SMALL_FAST_MODEL = orig;
   });
 
   it('returns empty arrays when LLM returns non-arrays', async () => {
-    mockLlmJsonCall.mockResolvedValue({ languages: 'not-array', frameworks: null });
-    const result = await detectFrameworks(['file.ts'], {});
+    mockLlmJsonCall.mockResolvedValue({ languages: 'not-array', frameworks: null, tools: 123 });
+    const result = await detectProjectStack(['file.ts'], {});
     expect(result.languages).toEqual([]);
     expect(result.frameworks).toEqual([]);
+    expect(result.tools).toEqual([]);
   });
 });

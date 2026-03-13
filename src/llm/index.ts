@@ -9,7 +9,7 @@ import { parseJsonResponse, extractJson, estimateTokens } from './utils.js';
 
 export type { LLMProvider, LLMConfig, LLMCallOptions };
 export type { LLMStreamOptions, LLMStreamCallbacks, ProviderType } from './types.js';
-export { loadConfig, writeConfigFile, getConfigFilePath } from './config.js';
+export { loadConfig, writeConfigFile, getConfigFilePath, getFastModel } from './config.js';
 export { parseJsonResponse, extractJson, estimateTokens };
 
 let cachedProvider: LLMProvider | null = null;

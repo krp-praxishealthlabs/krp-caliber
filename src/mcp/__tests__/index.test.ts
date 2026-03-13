@@ -3,26 +3,22 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
-// Mock all dependencies before importing
+// Mock dependencies
 vi.mock('../../llm/index.js');
-vi.mock('../deps.js');
-vi.mock('../classify.js');
 vi.mock('../search.js');
 vi.mock('../validate.js');
 vi.mock('../config-extract.js');
 
 import { discoverAndInstallMcps } from '../index.js';
-import { extractAllDeps } from '../deps.js';
-import { classifyDeps } from '../classify.js';
 import { searchAllMcpSources } from '../search.js';
 import { validateAndScore } from '../validate.js';
-import { fetchReadme, extractMcpConfig } from '../config-extract.js';
 import type { Fingerprint } from '../../fingerprint/index.js';
 
 function makeFingerprint(overrides: Partial<Fingerprint> = {}): Fingerprint {
   return {
     languages: ['TypeScript'],
     frameworks: [],
+    tools: [],
     fileTree: ['package.json', 'src/index.ts'],
     existingConfigs: {},
     ...overrides,
@@ -35,7 +31,6 @@ describe('discoverAndInstallMcps', () => {
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'caliber-mcp-'));
-    // Force non-interactive mode
     Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true });
   });
 
@@ -44,34 +39,20 @@ describe('discoverAndInstallMcps', () => {
     Object.defineProperty(process.stdin, 'isTTY', { value: originalIsTTY, configurable: true });
   });
 
-  it('returns zero installed when no deps found', async () => {
-    vi.mocked(extractAllDeps).mockReturnValue([]);
-
+  it('returns zero installed when no tools detected', async () => {
     const result = await discoverAndInstallMcps('claude', makeFingerprint(), tmpDir);
     expect(result.installed).toBe(0);
     expect(result.names).toEqual([]);
   });
 
-  it('returns zero installed when no tool deps classified', async () => {
-    vi.mocked(extractAllDeps).mockReturnValue(['lodash', 'react']);
-    vi.mocked(classifyDeps).mockResolvedValue([]);
-
-    const result = await discoverAndInstallMcps('claude', makeFingerprint(), tmpDir);
-    expect(result.installed).toBe(0);
-  });
-
   it('returns zero installed when no candidates found', async () => {
-    vi.mocked(extractAllDeps).mockReturnValue(['supabase']);
-    vi.mocked(classifyDeps).mockResolvedValue(['supabase']);
     vi.mocked(searchAllMcpSources).mockResolvedValue([]);
 
-    const result = await discoverAndInstallMcps('claude', makeFingerprint(), tmpDir);
+    const result = await discoverAndInstallMcps('claude', makeFingerprint({ tools: ['Supabase'] }), tmpDir);
     expect(result.installed).toBe(0);
   });
 
   it('returns zero installed when no candidates pass validation', async () => {
-    vi.mocked(extractAllDeps).mockReturnValue(['supabase']);
-    vi.mocked(classifyDeps).mockResolvedValue(['supabase']);
     vi.mocked(searchAllMcpSources).mockResolvedValue([{
       name: 'supabase-mcp',
       repoFullName: 'supabase/mcp',
@@ -82,19 +63,17 @@ describe('discoverAndInstallMcps', () => {
       vendor: false,
       score: 0,
       reason: '',
-      matchedDep: 'supabase',
+      matchedDep: 'Supabase',
     }]);
     vi.mocked(validateAndScore).mockResolvedValue([]);
 
-    const result = await discoverAndInstallMcps('claude', makeFingerprint(), tmpDir);
+    const result = await discoverAndInstallMcps('claude', makeFingerprint({ tools: ['Supabase'] }), tmpDir);
     expect(result.installed).toBe(0);
   });
 
   it('skips already-installed MCPs', async () => {
-    vi.mocked(extractAllDeps).mockReturnValue(['supabase']);
-    vi.mocked(classifyDeps).mockResolvedValue(['supabase']);
-
     const fingerprint = makeFingerprint({
+      tools: ['Supabase'],
       existingConfigs: {
         claudeMcpServers: { 'supabase-mcp': { command: 'npx' } },
       },

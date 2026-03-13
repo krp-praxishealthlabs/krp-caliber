@@ -1,16 +1,18 @@
 import { llmJsonCall } from '../llm/index.js';
+import { getFastModel } from '../llm/config.js';
 import { FINGERPRINT_SYSTEM_PROMPT } from './prompts.js';
 
 interface DetectResult {
   languages: string[];
   frameworks: string[];
+  tools: string[];
 }
 
-export async function detectFrameworks(
+export async function detectProjectStack(
   fileTree: string[],
   fileContents: Record<string, string>
 ): Promise<DetectResult> {
-  const parts: string[] = ['Analyze this project and detect languages and frameworks.\n'];
+  const parts: string[] = ['Analyze this project and detect languages, frameworks, and external tools/services.\n'];
 
   if (fileTree.length > 0) {
     parts.push('File tree:');
@@ -25,7 +27,7 @@ export async function detectFrameworks(
     }
   }
 
-  const fastModel = process.env.ANTHROPIC_SMALL_FAST_MODEL;
+  const fastModel = getFastModel();
 
   const result = await llmJsonCall<DetectResult>({
     system: FINGERPRINT_SYSTEM_PROMPT,
@@ -36,5 +38,6 @@ export async function detectFrameworks(
   return {
     languages: Array.isArray(result.languages) ? result.languages : [],
     frameworks: Array.isArray(result.frameworks) ? result.frameworks : [],
+    tools: Array.isArray(result.tools) ? result.tools : [],
   };
 }

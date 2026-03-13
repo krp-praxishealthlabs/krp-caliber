@@ -3,8 +3,6 @@ import ora from 'ora';
 import readline from 'readline';
 import fs from 'fs';
 import path from 'path';
-import { extractAllDeps } from './deps.js';
-import { classifyDeps } from './classify.js';
 import { searchAllMcpSources } from './search.js';
 import { validateAndScore } from './validate.js';
 import { fetchReadme, extractMcpConfig } from './config-extract.js';
@@ -15,6 +13,8 @@ type TargetAgent = 'claude' | 'cursor' | 'both';
 
 /**
  * Main orchestrator: discover and install MCP servers during init.
+ * Uses fingerprint.tools (detected by LLM during discovery) instead of
+ * hardcoded package file parsing.
  */
 export async function discoverAndInstallMcps(
   targetAgent: TargetAgent,
@@ -23,55 +23,39 @@ export async function discoverAndInstallMcps(
 ): Promise<McpDiscoveryResult> {
   console.log(chalk.hex('#6366f1').bold('\n  MCP Server Discovery\n'));
 
-  // Step 1: Extract dependencies
-  const spinner = ora('Analyzing dependencies for tool integrations...').start();
-  const allDeps = extractAllDeps(dir);
-
-  if (allDeps.length === 0) {
-    spinner.succeed(chalk.dim('No dependencies found — skipping MCP discovery'));
-    return { installed: 0, names: [] };
-  }
-
-  // Step 2: Classify deps as tools vs libraries
-  const toolDeps = await classifyDeps(allDeps);
+  const toolDeps = fingerprint.tools;
 
   if (toolDeps.length === 0) {
-    spinner.succeed(chalk.dim('No tool dependencies detected — skipping MCP discovery'));
-    console.log(chalk.dim(`  All deps (${allDeps.length}): ${allDeps.slice(0, 10).join(', ')}${allDeps.length > 10 ? '...' : ''}`));
+    console.log(chalk.dim('  No external tools or services detected — skipping MCP discovery'));
     return { installed: 0, names: [] };
   }
 
-  spinner.succeed(`Found ${toolDeps.length} tool dependenc${toolDeps.length === 1 ? 'y' : 'ies'}: ${toolDeps.join(', ')}`);
-  console.log(chalk.dim(`  All deps (${allDeps.length}): ${allDeps.slice(0, 10).join(', ')}${allDeps.length > 10 ? '...' : ''}`));
-  console.log(chalk.dim(`  Classified as tools: ${toolDeps.join(', ')}`));
+  const spinner = ora(`Searching MCP servers for ${toolDeps.length} detected tool${toolDeps.length === 1 ? '' : 's'}...`).start();
+  console.log(chalk.dim(`  Detected: ${toolDeps.join(', ')}`));
 
-  // Step 3: Filter out already-installed MCPs
+  // Filter out tools that already have MCP servers configured
   const existingMcps = getExistingMcpNames(fingerprint, targetAgent);
   const filteredDeps = toolDeps.filter(d => {
-    const lower = d.toLowerCase().replace(/^@[^/]+\//, '');
+    const lower = d.toLowerCase();
     return !existingMcps.some(name => name.includes(lower) || lower.includes(name));
   });
 
   if (filteredDeps.length === 0) {
-    console.log(chalk.dim('  All detected tools already have MCP servers configured.'));
-    console.log(chalk.dim(`  Existing MCPs: ${existingMcps.join(', ')}`));
+    spinner.succeed(chalk.dim('All detected tools already have MCP servers configured'));
     return { installed: 0, names: [] };
   }
 
-  // Step 4: Search for MCP servers
-  const searchSpinner = ora('Searching for MCP servers...').start();
+  // Search for MCP servers
   const candidates = await searchAllMcpSources(filteredDeps);
 
   if (candidates.length === 0) {
-    searchSpinner.succeed(chalk.dim('No MCP servers found for your dependencies'));
-    console.log(chalk.dim(`  Searched for: ${filteredDeps.join(', ')}`));
+    spinner.succeed(chalk.dim('No MCP servers found for detected tools'));
     return { installed: 0, names: [] };
   }
 
-  searchSpinner.succeed(`Found ${candidates.length} candidate${candidates.length === 1 ? '' : 's'}`);
-  console.log(chalk.dim(`  Sources: ${candidates.map(c => c.repoFullName).join(', ')}`));
+  spinner.succeed(`Found ${candidates.length} candidate${candidates.length === 1 ? '' : 's'} for ${filteredDeps.join(', ')}`);
 
-  // Step 5: Validate and score
+  // Validate and score
   const scoreSpinner = ora('Scoring MCP candidates...').start();
   const scored = await validateAndScore(candidates, filteredDeps);
 

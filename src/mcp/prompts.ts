@@ -1,12 +1,3 @@
-export const CLASSIFY_DEPS_PROMPT = `You classify software dependencies into two categories:
-
-**Tools** (MCP-worthy): Services, platforms, APIs, databases, SaaS products, and cloud services that have their own web dashboards, APIs, or external infrastructure. Examples: supabase, stripe, sentry, datadog, firebase, mongodb, redis, slack, linear, github, vercel, aws-sdk, twilio, sendgrid, algolia, elasticsearch, prisma, planetscale, neon, clerk, auth0.
-
-**Libraries** (skip): Utility packages, frameworks, build tools, test runners, and local-only code that does NOT connect to an external service. Examples: lodash, react, express, vitest, webpack, zod, chalk, commander, typescript, eslint, prettier, axios, dayjs, uuid.
-
-Given a list of dependencies, return ONLY the tool dependencies as a JSON array of strings.
-Return ONLY the JSON array, no explanation.`;
-
 export const SCORE_MCP_PROMPT = `You evaluate MCP (Model Context Protocol) server candidates for relevance to a software project.
 
 Score each candidate from 0-100 based on:

@@ -30,7 +30,7 @@ describe('generateSetup stream error handling', () => {
 
     const onError = vi.fn();
     const result = await generateSetup(
-      { languages: [], frameworks: [], fileTree: [], existingConfigs: {} },
+      { languages: [], frameworks: [], tools: [], fileTree: [], existingConfigs: {} },
       'claude',
       undefined,
       { onStatus: vi.fn(), onComplete: vi.fn(), onError }
@@ -49,7 +49,7 @@ describe('generateSetup stream error handling', () => {
     });
 
     const result = await generateSetup(
-      { languages: [], frameworks: [], fileTree: [], existingConfigs: {} },
+      { languages: [], frameworks: [], tools: [], fileTree: [], existingConfigs: {} },
       'claude'
     );
 
@@ -64,7 +64,7 @@ describe('generateSetup stream error handling', () => {
     });
 
     const result = await generateSetup(
-      { languages: [], frameworks: [], fileTree: [], existingConfigs: {} },
+      { languages: [], frameworks: [], tools: [], fileTree: [], existingConfigs: {} },
       'claude'
     );
 
@@ -88,7 +88,7 @@ describe('generateSetup stream error handling', () => {
 
     const onStatus = vi.fn();
     const result = await generateSetup(
-      { languages: [], frameworks: [], fileTree: [], existingConfigs: {} },
+      { languages: [], frameworks: [], tools: [], fileTree: [], existingConfigs: {} },
       'claude',
       undefined,
       { onStatus, onComplete: vi.fn(), onError: vi.fn() }

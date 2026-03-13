@@ -16,7 +16,7 @@ import { installHook, installPreCommitHook } from '../lib/hooks.js';
 import { installLearningHooks } from '../lib/learning-hooks.js';
 import { writeState, getCurrentHeadSha } from '../lib/state.js';
 import { SpinnerMessages, GENERATION_MESSAGES, REFINE_MESSAGES } from '../utils/spinner-messages.js';
-import { loadConfig } from '../llm/config.js';
+import { loadConfig, getFastModel } from '../llm/config.js';
 import { llmJsonCall } from '../llm/index.js';
 import { runInteractiveProviderSetup } from './interactive-provider-setup.js';
 import { computeLocalScore } from '../scoring/index.js';
@@ -53,13 +53,14 @@ export async function initCommand(options: InitOptions) {
   console.log(chalk.dim('  so your AI coding agents understand your project from day one.\n'));
 
   console.log(title.bold('  How onboarding works:\n'));
-  console.log(chalk.dim('  1. Connect   Set up your LLM provider'));
-  console.log(chalk.dim('  2. Discover  Analyze your code, dependencies, and structure'));
-  console.log(chalk.dim('  3. Generate  Create config files tailored to your project'));
-  console.log(chalk.dim('  4. Review    Preview, refine, and apply the changes\n'));
+  console.log(chalk.dim('  1. Connect    Set up your LLM provider'));
+  console.log(chalk.dim('  2. Discover   Analyze your code, dependencies, and structure'));
+  console.log(chalk.dim('  3. Generate   Create config files tailored to your project'));
+  console.log(chalk.dim('  4. Review     Preview, refine, and apply the changes'));
+  console.log(chalk.dim('  5. Enhance    Discover MCP servers for your tools\n'));
 
   // Step 1: Connect LLM provider
-  console.log(title.bold('  Step 1/4 — Connect your LLM\n'));
+  console.log(title.bold('  Step 1/5 — Connect your LLM\n'));
   let config = loadConfig();
   if (!config) {
     console.log(chalk.dim('  No LLM provider set yet. Choose how to run Caliber:\n'));
@@ -81,14 +82,14 @@ export async function initCommand(options: InitOptions) {
   const displayModel = config.model === 'default' && config.provider === 'claude-cli'
     ? process.env.ANTHROPIC_MODEL || 'default (inherited from Claude Code)'
     : config.model;
-  const fastModel = process.env.ANTHROPIC_SMALL_FAST_MODEL;
+  const fastModel = getFastModel();
   const modelLine = fastModel
     ? `  Provider: ${config.provider} | Model: ${displayModel} | Scan: ${fastModel}`
     : `  Provider: ${config.provider} | Model: ${displayModel}`;
   console.log(chalk.dim(modelLine + '\n'));
 
   // Step 2: Discover project
-  console.log(title.bold('  Step 2/4 — Discover your project\n'));
+  console.log(title.bold('  Step 2/5 — Discover your project\n'));
   console.log(chalk.dim('  Learning about your languages, dependencies, structure, and existing configs.\n'));
   const spinner = ora('Analyzing project...').start();
   const fingerprint = collectFingerprint(process.cwd());
@@ -152,7 +153,7 @@ export async function initCommand(options: InitOptions) {
     currentScore = baselineScore.score;
 
     if (failingChecks.length > 0) {
-      console.log(title.bold('  Step 3/4 — Fine-tuning\n'));
+      console.log(title.bold('  Step 3/5 — Fine-tuning\n'));
       console.log(chalk.dim(`  Your setup scores ${baselineScore.score}/100 — fixing ${failingChecks.length} remaining issue${failingChecks.length === 1 ? '' : 's'}:\n`));
       for (const check of failingChecks) {
         console.log(chalk.dim(`    • ${check.name}`));
@@ -160,11 +161,11 @@ export async function initCommand(options: InitOptions) {
       console.log('');
     }
   } else if (hasExistingConfig) {
-    console.log(title.bold('  Step 3/4 — Improve your setup\n'));
+    console.log(title.bold('  Step 3/5 — Improve your setup\n'));
     console.log(chalk.dim('  Reviewing your existing configs against your codebase'));
     console.log(chalk.dim('  and preparing improvements.\n'));
   } else {
-    console.log(title.bold('  Step 3/4 — Build your agent setup\n'));
+    console.log(title.bold('  Step 3/5 — Build your agent setup\n'));
     console.log(chalk.dim('  Creating config files tailored to your project.\n'));
   }
   console.log(chalk.dim('  This can take a couple of minutes depending on your model and provider.\n'));
@@ -232,7 +233,7 @@ export async function initCommand(options: InitOptions) {
   });
 
   // Step 4: Review and apply
-  console.log(title.bold('  Step 4/4 — Review and apply\n'));
+  console.log(title.bold('  Step 4/5 — Review and apply\n'));
 
   const setupFiles = collectSetupFiles(generatedSetup);
   const staged = stageFiles(setupFiles, process.cwd());
@@ -300,18 +301,25 @@ export async function initCommand(options: InitOptions) {
     throw new Error('__exit__');
   }
 
-  // MCP Server Discovery
-  try {
-    const mcpResult = await discoverAndInstallMcps(targetAgent, fingerprint, process.cwd());
-    if (mcpResult.installed > 0) {
-      console.log(chalk.bold(`\n  ${mcpResult.installed} MCP server${mcpResult.installed > 1 ? 's' : ''} configured`));
-      for (const name of mcpResult.names) {
-        console.log(`  ${chalk.green('✓')} ${name}`);
+  // Step 5: MCP Server Discovery
+  console.log(title.bold('\n  Step 5/5 — Enhance with MCP servers\n'));
+  console.log(chalk.dim('  MCP servers connect your AI agents to external tools and services'));
+  console.log(chalk.dim('  like databases, APIs, and platforms your project depends on.\n'));
+
+  if (fingerprint.tools.length > 0) {
+    try {
+      const mcpResult = await discoverAndInstallMcps(targetAgent, fingerprint, process.cwd());
+      if (mcpResult.installed > 0) {
+        console.log(chalk.bold(`\n  ${mcpResult.installed} MCP server${mcpResult.installed > 1 ? 's' : ''} configured`));
+        for (const name of mcpResult.names) {
+          console.log(`  ${chalk.green('✓')} ${name}`);
+        }
       }
+    } catch (err) {
+      console.log(chalk.dim('  MCP discovery skipped: ' + (err instanceof Error ? err.message : 'unknown error')));
     }
-  } catch (err) {
-    // MCP discovery is optional — don't fail init
-    console.log(chalk.dim('  MCP discovery skipped: ' + (err instanceof Error ? err.message : 'unknown error')));
+  } else {
+    console.log(chalk.dim('  No external tools or services detected — skipping MCP discovery.\n'));
   }
 
   // Ensure permissions.allow exists in .claude/settings.json
@@ -455,7 +463,7 @@ function summarizeSetup(action: string, setup: Record<string, unknown>): string 
 }
 
 async function classifyRefineIntent(message: string): Promise<boolean> {
-  const fastModel = process.env.ANTHROPIC_SMALL_FAST_MODEL;
+  const fastModel = getFastModel();
   try {
     const result = await llmJsonCall<{ valid: boolean }>({
       system: `You classify whether a user message is a valid request to modify AI agent config files (CLAUDE.md, .cursorrules, skills).
@@ -477,7 +485,7 @@ async function evaluateDismissals(
   failingChecks: readonly Check[],
   fingerprint: { languages: string[]; frameworks: string[] },
 ): Promise<DismissedCheck[]> {
-  const fastModel = process.env.ANTHROPIC_SMALL_FAST_MODEL;
+  const fastModel = getFastModel();
   const checkList = failingChecks.map(c => ({
     id: c.id,
     name: c.name,

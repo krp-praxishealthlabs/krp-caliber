@@ -5,7 +5,7 @@ import path from 'path';
 vi.mock('fs');
 vi.mock('os', () => ({ default: { homedir: () => '/home/user' } }));
 
-import { loadConfig, resolveFromEnv, readConfigFile, writeConfigFile, DEFAULT_MODELS } from '../config.js';
+import { loadConfig, resolveFromEnv, readConfigFile, writeConfigFile, DEFAULT_MODELS, getFastModel } from '../config.js';
 
 const CONFIG_DIR = path.join('/home/user', '.caliber');
 
@@ -27,6 +27,8 @@ describe('config', () => {
     delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
     delete process.env.CALIBER_USE_CURSOR_SEAT;
     delete process.env.CALIBER_USE_CLAUDE_CLI;
+    delete process.env.CALIBER_FAST_MODEL;
+    delete process.env.ANTHROPIC_SMALL_FAST_MODEL;
 
     vi.mocked(fs.existsSync).mockReturnValue(false);
   });
@@ -285,6 +287,28 @@ describe('config', () => {
       expect(DEFAULT_MODELS.anthropic).toBeDefined();
       expect(DEFAULT_MODELS.vertex).toBeDefined();
       expect(DEFAULT_MODELS.openai).toBeDefined();
+    });
+  });
+
+  describe('getFastModel', () => {
+    it('returns CALIBER_FAST_MODEL when set', () => {
+      process.env.CALIBER_FAST_MODEL = 'gpt-4.1-mini';
+      expect(getFastModel()).toBe('gpt-4.1-mini');
+    });
+
+    it('falls back to ANTHROPIC_SMALL_FAST_MODEL', () => {
+      process.env.ANTHROPIC_SMALL_FAST_MODEL = 'claude-haiku-4-5';
+      expect(getFastModel()).toBe('claude-haiku-4-5');
+    });
+
+    it('prefers CALIBER_FAST_MODEL over ANTHROPIC_SMALL_FAST_MODEL', () => {
+      process.env.CALIBER_FAST_MODEL = 'gpt-4.1-mini';
+      process.env.ANTHROPIC_SMALL_FAST_MODEL = 'claude-haiku-4-5';
+      expect(getFastModel()).toBe('gpt-4.1-mini');
+    });
+
+    it('returns undefined when neither is set', () => {
+      expect(getFastModel()).toBeUndefined();
     });
   });
 });

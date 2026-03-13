@@ -2,12 +2,10 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { getGitRemoteUrl } from './git.js';
-import { analyzePackageJson } from './package-json.js';
 import { getFileTree } from './file-tree.js';
-import { detectLanguages } from './languages.js';
 import { readExistingConfigs } from './existing-config.js';
 import { analyzeCode, CodeAnalysis } from './code-analysis.js';
-import { detectFrameworks } from '../ai/detect.js';
+import { detectProjectStack } from '../ai/detect.js';
 import { loadConfig } from '../llm/config.js';
 
 export type { CodeAnalysis };
@@ -17,6 +15,7 @@ export interface Fingerprint {
   packageName?: string;
   languages: string[];
   frameworks: string[];
+  tools: string[];
   fileTree: string[];
   existingConfigs: ReturnType<typeof readExistingConfigs>;
   codeAnalysis?: CodeAnalysis;
@@ -25,23 +24,32 @@ export interface Fingerprint {
 
 export function collectFingerprint(dir: string): Fingerprint {
   const gitRemoteUrl = getGitRemoteUrl();
-  const pkgInfo = analyzePackageJson(dir);
   const fileTree = getFileTree(dir);
-  const fileLangs = detectLanguages(fileTree);
   const existingConfigs = readExistingConfigs(dir);
   const codeAnalysis = analyzeCode(dir);
-
-  const languages = [...new Set([...pkgInfo.languages, ...fileLangs])];
+  const packageName = readPackageName(dir);
 
   return {
     gitRemoteUrl,
-    packageName: pkgInfo.name,
-    languages,
+    packageName,
+    languages: [],
     frameworks: [],
+    tools: [],
     fileTree,
     existingConfigs,
     codeAnalysis,
   };
+}
+
+function readPackageName(dir: string): string | undefined {
+  try {
+    const pkgPath = path.join(dir, 'package.json');
+    if (!fs.existsSync(pkgPath)) return undefined;
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+    return pkg.name;
+  } catch {
+    return undefined;
+  }
 }
 
 export function computeFingerprintHash(fingerprint: Fingerprint): string {
@@ -96,7 +104,7 @@ export async function enrichFingerprintWithLLM(fingerprint: Fingerprint, dir: st
 
     if (Object.keys(fileContents).length === 0 && fingerprint.fileTree.length === 0) return;
 
-    const result = await detectFrameworks(fingerprint.fileTree, fileContents);
+    const result = await detectProjectStack(fingerprint.fileTree, fileContents);
 
     if (result.languages?.length) {
       const langSet = new Set(fingerprint.languages);
@@ -108,6 +116,12 @@ export async function enrichFingerprintWithLLM(fingerprint: Fingerprint, dir: st
       const fwSet = new Set(fingerprint.frameworks);
       for (const fw of result.frameworks) fwSet.add(fw);
       fingerprint.frameworks = [...fwSet];
+    }
+
+    if (result.tools?.length) {
+      const toolSet = new Set(fingerprint.tools);
+      for (const tool of result.tools) toolSet.add(tool);
+      fingerprint.tools = [...toolSet];
     }
   } catch {
     // Silently fall back to local detection

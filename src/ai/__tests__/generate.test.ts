@@ -6,6 +6,7 @@ function makeFingerprint(overrides: Partial<Fingerprint> = {}): Fingerprint {
   return {
     languages: [],
     frameworks: [],
+    tools: [],
     fileTree: [],
     existingConfigs: {},
     ...overrides,

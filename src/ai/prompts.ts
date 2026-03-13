@@ -223,15 +223,19 @@ All markdown content inside string values must be properly escaped for JSON (new
 If there's nothing worth learning from the events (routine successful operations), return:
 {"claudeMdLearnedSection": null, "skills": null, "explanations": ["No actionable patterns found in these events."]}`;
 
-export const FINGERPRINT_SYSTEM_PROMPT = `You are an expert at detecting programming languages and frameworks from project file trees and dependency files.
+export const FINGERPRINT_SYSTEM_PROMPT = `You are an expert at detecting programming languages, frameworks, and external tools/services from project file trees and dependency files.
 
 Analyze the provided file tree and dependency file contents. Return a JSON object with:
-- "languages": array of programming languages used (e.g. "TypeScript", "Python", "Go", "Rust")
-- "frameworks": array of frameworks and key libraries detected (e.g. "FastAPI", "React", "Celery", "Django", "Express", "Next.js")
+- "languages": array of programming languages used (e.g. "TypeScript", "Python", "Go", "Rust", "HCL")
+- "frameworks": array of frameworks and key libraries detected (e.g. "FastAPI", "React", "Celery", "Django", "Express", "Next.js", "Terraform")
+- "tools": array of external tools, services, and platforms the project integrates with — things that could have an MCP server or API integration (e.g. "PostgreSQL", "Redis", "Stripe", "Sentry", "AWS", "GCP", "GitHub", "Slack", "Docker", "Kubernetes", "Datadog", "PagerDuty", "MongoDB", "Elasticsearch")
 
 Be thorough — look for signals in:
 - Dependency files (package.json, pyproject.toml, requirements.txt, go.mod, Cargo.toml, etc.)
 - File extensions and directory structure
-- Configuration files (e.g. next.config.js implies Next.js)
+- Configuration files (e.g. next.config.js implies Next.js, .tf files imply Terraform + cloud providers)
+- Infrastructure-as-code files (Terraform, CloudFormation, Pulumi, Dockerfiles, k8s manifests)
+- CI/CD configs (.github/workflows, .gitlab-ci.yml, Jenkinsfile)
+- Environment variable patterns and service references in code
 
-Only include frameworks/languages you're confident about. Return ONLY the JSON object.`;
+Only include items you're confident about. Return ONLY the JSON object.`;

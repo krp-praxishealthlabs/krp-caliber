@@ -100,3 +100,7 @@ export function writeConfigFile(config: LLMConfig): void {
 export function getConfigFilePath(): string {
   return CONFIG_FILE;
 }
+
+export function getFastModel(): string | undefined {
+  return process.env.CALIBER_FAST_MODEL || process.env.ANTHROPIC_SMALL_FAST_MODEL || undefined;
+}
