@@ -10,6 +10,16 @@ let _resolved: string | null = null;
 export function resolveCaliber(): string {
   if (_resolved) return _resolved;
 
+  // 0. Detect npx context — temp paths become stale after the npx process exits,
+  //    so use `npx --yes @rely-ai/caliber` which always resolves correctly.
+  const isNpx =
+    process.argv[1]?.includes('_npx') ||
+    process.env.npm_execpath?.includes('npx');
+  if (isNpx) {
+    _resolved = 'npx --yes @rely-ai/caliber';
+    return _resolved;
+  }
+
   // 1. Try `which caliber`
   try {
     const found = execSync('which caliber', {
@@ -48,5 +58,8 @@ export function isCaliberCommand(command: string, subcommandTail: string): boole
   if (command === `caliber ${subcommandTail}`) return true;
   // Absolute-path match: ends with /caliber <tail>
   if (command.endsWith(`/caliber ${subcommandTail}`)) return true;
+  // npx match: `npx --yes @rely-ai/caliber <tail>` or `npx @rely-ai/caliber <tail>`
+  if (command === `npx --yes @rely-ai/caliber ${subcommandTail}`) return true;
+  if (command === `npx @rely-ai/caliber ${subcommandTail}`) return true;
   return false;
 }
