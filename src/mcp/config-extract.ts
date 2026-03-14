@@ -1,4 +1,5 @@
 import { llmJsonCall } from '../llm/index.js';
+import { getFastModel } from '../llm/config.js';
 import { EXTRACT_CONFIG_PROMPT } from './prompts.js';
 import type { McpConfigTemplate } from './types.js';
 
@@ -37,10 +38,12 @@ export async function extractMcpConfig(
     // Truncate very long READMEs to avoid token limits
     const truncated = readme.length > 15_000 ? readme.slice(0, 15_000) : readme;
 
+    const fastModel = getFastModel();
     const result = await llmJsonCall<McpConfigTemplate>({
       system: EXTRACT_CONFIG_PROMPT,
       prompt: `MCP Server: ${serverName}\n\nREADME:\n${truncated}`,
       maxTokens: 2000,
+      ...(fastModel ? { model: fastModel } : {}),
     });
 
     if (!result || !result.command) return null;

@@ -5,7 +5,7 @@ import path from 'path';
 vi.mock('fs');
 vi.mock('os', () => ({ default: { homedir: () => '/home/user' } }));
 
-import { loadConfig, resolveFromEnv, readConfigFile, writeConfigFile, DEFAULT_MODELS, getFastModel } from '../config.js';
+import { loadConfig, resolveFromEnv, readConfigFile, writeConfigFile, DEFAULT_MODELS, DEFAULT_FAST_MODELS, getFastModel } from '../config.js';
 
 const CONFIG_DIR = path.join('/home/user', '.caliber');
 
@@ -307,8 +307,63 @@ describe('config', () => {
       expect(getFastModel()).toBe('gpt-4.1-mini');
     });
 
-    it('returns undefined when neither is set', () => {
+    it('returns undefined when neither is set and no provider configured', () => {
       expect(getFastModel()).toBeUndefined();
+    });
+
+    it('returns provider default for anthropic', () => {
+      process.env.ANTHROPIC_API_KEY = 'sk-ant-test';
+      expect(getFastModel()).toBe('claude-haiku-4-5-20251001');
+    });
+
+    it('returns provider default for vertex', () => {
+      process.env.VERTEX_PROJECT_ID = 'my-project';
+      expect(getFastModel()).toBe('claude-haiku-4-5-20251001');
+    });
+
+    it('returns provider default for openai', () => {
+      process.env.OPENAI_API_KEY = 'sk-openai-test';
+      expect(getFastModel()).toBe('gpt-4.1-mini');
+    });
+
+    it('returns undefined for cursor provider', () => {
+      process.env.CALIBER_USE_CURSOR_SEAT = '1';
+      expect(getFastModel()).toBeUndefined();
+    });
+
+    it('returns undefined for claude-cli provider', () => {
+      process.env.CALIBER_USE_CLAUDE_CLI = '1';
+      expect(getFastModel()).toBeUndefined();
+    });
+
+    it('config file fastModel overrides provider default', () => {
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      vi.mocked(fs.readFileSync).mockReturnValue(
+        JSON.stringify({ provider: 'anthropic', model: 'claude-sonnet-4-6', apiKey: 'sk-test', fastModel: 'custom-fast' }) as any
+      );
+      expect(getFastModel()).toBe('custom-fast');
+    });
+
+    it('env var overrides config file fastModel and provider default', () => {
+      process.env.CALIBER_FAST_MODEL = 'env-fast-model';
+      process.env.ANTHROPIC_API_KEY = 'sk-ant-test';
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      vi.mocked(fs.readFileSync).mockReturnValue(
+        JSON.stringify({ provider: 'anthropic', model: 'claude-sonnet-4-6', apiKey: 'sk-test', fastModel: 'config-fast' }) as any
+      );
+      expect(getFastModel()).toBe('env-fast-model');
+    });
+  });
+
+  describe('DEFAULT_FAST_MODELS', () => {
+    it('has defaults for API providers only', () => {
+      expect(DEFAULT_FAST_MODELS.anthropic).toBe('claude-haiku-4-5-20251001');
+      expect(DEFAULT_FAST_MODELS.vertex).toBe('claude-haiku-4-5-20251001');
+      expect(DEFAULT_FAST_MODELS.openai).toBe('gpt-4.1-mini');
+      expect(DEFAULT_FAST_MODELS.cursor).toBeUndefined();
+      expect(DEFAULT_FAST_MODELS['claude-cli']).toBeUndefined();
     });
   });
 });

@@ -1,4 +1,5 @@
 import { llmCall, estimateTokens } from '../llm/index.js';
+import { getFastModel } from '../llm/config.js';
 import { extractJson, stripMarkdownFences } from '../llm/utils.js';
 import { LEARN_SYSTEM_PROMPT } from './prompts.js';
 
@@ -104,10 +105,12 @@ export async function analyzeEvents(
 
   const prompt = `${contextParts.length ? contextParts.join('\n\n---\n\n') + '\n\n---\n\n' : ''}## Tool Events from Session (${fittedEvents.length} events)\n\n${eventsText}`;
 
+  const fastModel = getFastModel();
   const raw = await llmCall({
     system: LEARN_SYSTEM_PROMPT,
     prompt,
     maxTokens: 4096,
+    ...(fastModel ? { model: fastModel } : {}),
   });
 
   return parseAnalysisResponse(raw);

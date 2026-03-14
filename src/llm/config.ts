@@ -14,6 +14,12 @@ export const DEFAULT_MODELS: Record<ProviderType, string> = {
   'claude-cli': 'default',
 };
 
+export const DEFAULT_FAST_MODELS: Partial<Record<ProviderType, string>> = {
+  anthropic: 'claude-haiku-4-5-20251001',
+  vertex: 'claude-haiku-4-5-20251001',
+  openai: 'gpt-4.1-mini',
+};
+
 export function loadConfig(): LLMConfig | null {
   // 1. Env vars take priority
   const envConfig = resolveFromEnv();
@@ -102,5 +108,12 @@ export function getConfigFilePath(): string {
 }
 
 export function getFastModel(): string | undefined {
-  return process.env.CALIBER_FAST_MODEL || process.env.ANTHROPIC_SMALL_FAST_MODEL || undefined;
+  if (process.env.CALIBER_FAST_MODEL) return process.env.CALIBER_FAST_MODEL;
+  if (process.env.ANTHROPIC_SMALL_FAST_MODEL) return process.env.ANTHROPIC_SMALL_FAST_MODEL;
+
+  const config = loadConfig();
+  if (config?.fastModel) return config.fastModel;
+  if (config?.provider) return DEFAULT_FAST_MODELS[config.provider];
+
+  return undefined;
 }

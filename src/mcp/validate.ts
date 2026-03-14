@@ -1,4 +1,5 @@
 import { llmJsonCall } from '../llm/index.js';
+import { getFastModel } from '../llm/config.js';
 import { SCORE_MCP_PROMPT } from './prompts.js';
 import type { McpCandidate } from './types.js';
 
@@ -62,10 +63,12 @@ async function scoreWithLLM(
     })
     .join('\n');
 
+  const fastModel = getFastModel();
   const scored = await llmJsonCall<ScoredCandidate[]>({
     system: SCORE_MCP_PROMPT,
     prompt: `TOOL DEPENDENCIES IN PROJECT:\n${toolDeps.join(', ')}\n\nMCP SERVER CANDIDATES:\n${candidateList}`,
     maxTokens: 4000,
+    ...(fastModel ? { model: fastModel } : {}),
   });
 
   if (!Array.isArray(scored)) return [];

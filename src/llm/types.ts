@@ -3,6 +3,7 @@ export type ProviderType = 'anthropic' | 'vertex' | 'openai' | 'cursor' | 'claud
 export interface LLMConfig {
   provider: ProviderType;
   model: string;
+  fastModel?: string;
   apiKey?: string;
   baseUrl?: string;
   vertexProjectId?: string;

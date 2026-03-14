@@ -6,7 +6,7 @@ import { join, dirname } from 'path';
 import { collectFingerprint, Fingerprint } from '../fingerprint/index.js';
 import { scanLocalState } from '../scanner/index.js';
 import { llmJsonCall } from '../llm/index.js';
-import { loadConfig } from '../llm/config.js';
+import { loadConfig, getFastModel } from '../llm/config.js';
 
 type Platform = 'claude' | 'cursor' | 'codex';
 
@@ -219,6 +219,7 @@ async function scoreWithLLM(
     .map((c, i) => `${i}. "${c.name}" — ${c.reason || 'no description'}`)
     .join('\n');
 
+  const fastModel = getFastModel();
   const scored = await llmJsonCall<ScoredCandidate[]>({
     system: `You evaluate whether AI agent skills and tools are relevant to a specific software project.
 Given a project context and a list of candidates, score each one's relevance from 0-100 and provide a brief reason (max 80 chars).
@@ -240,6 +241,7 @@ A generic "TypeScript best practices" skill is less valuable than one targeting 
 Return ONLY the JSON array.`,
     prompt: `PROJECT CONTEXT:\n${projectContext}\n\nDETECTED TECHNOLOGIES:\n${technologies.join(', ')}\n\nCANDIDATES:\n${candidateList}`,
     maxTokens: 8000,
+    ...(fastModel ? { model: fastModel } : {}),
   });
 
   if (!Array.isArray(scored)) return [];
