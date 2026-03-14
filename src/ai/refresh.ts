@@ -1,4 +1,5 @@
 import { llmCall, parseJsonResponse } from '../llm/index.js';
+import { getFastModel } from '../llm/config.js';
 import { REFRESH_SYSTEM_PROMPT } from './prompts.js';
 
 interface RefreshDiff {
@@ -42,11 +43,13 @@ export async function refreshDocs(
   projectContext: ProjectContext
 ): Promise<RefreshResponse> {
   const prompt = buildRefreshPrompt(diff, existingDocs, projectContext);
+  const fastModel = getFastModel();
 
   const raw = await llmCall({
     system: REFRESH_SYSTEM_PROMPT,
     prompt,
     maxTokens: 16384,
+    ...(fastModel ? { model: fastModel } : {}),
   });
 
   return parseJsonResponse<RefreshResponse>(raw);

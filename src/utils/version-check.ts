@@ -90,7 +90,7 @@ export async function checkForUpdates(): Promise<void> {
     } catch (err) {
       spinner.fail('Update failed');
       if (err instanceof Error) {
-        const stderr = (err as Record<string, unknown>).stderr;
+        const stderr = (err as unknown as Record<string, unknown>).stderr;
         const errMsg = stderr ? String(stderr).trim().split('\n').pop() : err.message.split('\n')[0];
         if (errMsg && !errMsg.includes('SIGTERM')) console.log(chalk.dim(`  ${errMsg}`));
       }

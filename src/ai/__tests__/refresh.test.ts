@@ -14,6 +14,8 @@ const mockedParseJson = vi.mocked(parseJsonResponse);
 describe('refreshDocs', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete process.env.CALIBER_FAST_MODEL;
+    delete process.env.ANTHROPIC_SMALL_FAST_MODEL;
   });
 
   const baseDiff = {
@@ -127,5 +129,34 @@ describe('refreshDocs', () => {
     await refreshDocs(baseDiff, {}, baseContext);
 
     expect(mockedLlmCall.mock.calls[0][0].maxTokens).toBe(16384);
+  });
+
+  it('passes CALIBER_FAST_MODEL as model override when set', async () => {
+    process.env.CALIBER_FAST_MODEL = 'gpt-4.1-mini';
+    mockedLlmCall.mockResolvedValue('{}');
+    mockedParseJson.mockReturnValue({ updatedDocs: {}, changesSummary: '', docsUpdated: [] });
+
+    await refreshDocs(baseDiff, {}, baseContext);
+
+    expect(mockedLlmCall.mock.calls[0][0].model).toBe('gpt-4.1-mini');
+  });
+
+  it('falls back to ANTHROPIC_SMALL_FAST_MODEL', async () => {
+    process.env.ANTHROPIC_SMALL_FAST_MODEL = 'claude-haiku-4-5';
+    mockedLlmCall.mockResolvedValue('{}');
+    mockedParseJson.mockReturnValue({ updatedDocs: {}, changesSummary: '', docsUpdated: [] });
+
+    await refreshDocs(baseDiff, {}, baseContext);
+
+    expect(mockedLlmCall.mock.calls[0][0].model).toBe('claude-haiku-4-5');
+  });
+
+  it('does not pass model override when no fast model env is set', async () => {
+    mockedLlmCall.mockResolvedValue('{}');
+    mockedParseJson.mockReturnValue({ updatedDocs: {}, changesSummary: '', docsUpdated: [] });
+
+    await refreshDocs(baseDiff, {}, baseContext);
+
+    expect(mockedLlmCall.mock.calls[0][0].model).toBeUndefined();
   });
 });
