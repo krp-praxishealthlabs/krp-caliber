@@ -10,7 +10,7 @@
 
 <p align="center"><strong>Analyze your codebase. Generate optimized AI agent configs. One command.</strong></p>
 
-Caliber scans your project — languages, frameworks, dependencies, file structure — and generates tailored config files for Claude Code and Cursor. If configs already exist, it audits them and suggests improvements.
+Caliber scans your project — languages, frameworks, dependencies, file structure — and generates tailored config files for Claude Code, Cursor, and Codex. If configs already exist, it audits them and suggests improvements.
 
 **No API key required** — use your existing Claude Code or Cursor subscription. Or bring your own key (Anthropic, OpenAI, Vertex AI, any OpenAI-compatible endpoint).
 
@@ -59,8 +59,8 @@ caliber onboard
 |------|---------|
 | `CLAUDE.md` | Project context for Claude Code — commands, architecture, conventions |
 | `.cursorrules` / `.cursor/rules/` | Rules for Cursor |
-| Skills (`.claude/skills/`, `.cursor/skills/`) | Reusable skill files following the [OpenSkills](https://agentskills.io) standard |
-| `AGENTS.md` | Agent collaboration guide |
+| `AGENTS.md` | Project context for OpenAI Codex |
+| Skills (`.claude/skills/`, `.cursor/skills/`, `.agents/skills/`) | Reusable skill files following the [OpenSkills](https://agentskills.io) standard |
 
 If these files already exist, Caliber audits them against your actual codebase and suggests targeted improvements — keeping what works, fixing what's stale, adding what's missing.
 
@@ -76,9 +76,11 @@ If these files already exist, Caliber audits them against your actual codebase a
 ```bash
 caliber onboard --agent claude      # Target Claude Code only
 caliber onboard --agent cursor      # Target Cursor only
-caliber onboard --agent both        # Target both
+caliber onboard --agent codex       # Target OpenAI Codex only
+caliber onboard --agent all         # Target all three
+caliber onboard --agent claude,cursor  # Comma-separated
 caliber onboard --dry-run           # Preview without writing files
-caliber score --json             # Machine-readable output
+caliber score --json                # Machine-readable output
 ```
 
 ## LLM Providers
@@ -119,6 +121,8 @@ export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
 - One LLM provider: your **Claude Code** or **Cursor** subscription (no API key), or an API key for Anthropic / OpenAI / Vertex AI
 
 ## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for detailed guidelines.
 
 ```bash
 git clone https://github.com/rely-ai-org/caliber.git
