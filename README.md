@@ -9,9 +9,7 @@
 </p>
 
 <p align="center">
-  <video src="https://github.com/rely-ai-org/caliber/raw/master/assets/demo.mp4" width="640" controls muted playsinline>
-    Your browser does not support video. <a href="assets/demo.mp4">Watch the demo</a>.
-  </video>
+  <img src="assets/demo.gif" alt="Caliber demo" width="640">
 </p>
 
 ---
