@@ -58,6 +58,18 @@ describe('detectProjectStack', () => {
     // Result depends on configured provider — may be undefined or a default model
   });
 
+  it('caps file tree at 500 entries for large repos', async () => {
+    const largeTree = Array.from({ length: 20000 }, (_, i) => `src/file-${i}.ts`);
+    await detectProjectStack(largeTree, {});
+
+    const callArgs = mockLlmJsonCall.mock.calls[0][0];
+    const prompt = callArgs.prompt as string;
+    // Should contain "500/20000" indicator and NOT all 20000 entries
+    expect(prompt).toContain('500/20000');
+    expect(prompt).toContain('file-499');
+    expect(prompt).not.toContain('file-500');
+  });
+
   it('returns empty arrays when LLM returns non-arrays', async () => {
     mockLlmJsonCall.mockResolvedValue({ languages: 'not-array', frameworks: null, tools: 123 });
     const result = await detectProjectStack(['file.ts'], {});

@@ -15,8 +15,9 @@ export async function detectProjectStack(
   const parts: string[] = ['Analyze this project and detect languages, frameworks, and external tools/services.\n'];
 
   if (fileTree.length > 0) {
-    parts.push('File tree:');
-    parts.push(fileTree.join('\n'));
+    const cappedTree = fileTree.slice(0, 500);
+    parts.push(`File tree (${cappedTree.length}/${fileTree.length} entries):`);
+    parts.push(cappedTree.join('\n'));
   }
 
   if (Object.keys(fileContents).length > 0) {
