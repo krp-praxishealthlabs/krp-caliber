@@ -191,33 +191,31 @@ Example: "Manages database migrations. Use when user says 'run migration', 'crea
 The "fileDescriptions" object MUST include a one-liner for every file that will be created or modified.
 The "deletions" array should list files that should be removed (e.g. stale configs). Omit if empty.
 
-SCORING CRITERIA — your output is scored deterministically. Optimize for 100/100:
+SCORING CRITERIA — your output is scored deterministically against the actual filesystem. Optimize for 100/100:
 
 Existence (25 pts):
-- CLAUDE.md exists (6 pts) — always generate for claude/both targets
+- CLAUDE.md exists (6 pts) — always generate for claude targets
 - AGENTS.md exists (6 pts) — always generate for codex target
-- Skills configured (8 pts) — 3 skill topics = full points
+- Skills configured (8 pts) — generate 3+ skill topics for full points
 - For "both" target: .cursor/rules/ exist (3+3 pts), cross-platform parity (2 pts)
 
 Quality (25 pts):
-- Build/test/lint commands documented (8 pts) — include actual commands from the project
-- Concise context files (6 pts) — keep CLAUDE.md under 100 lines (200=4pts, 300=3pts, 500+=0pts)
-- No vague instructions (4 pts) — avoid "follow best practices", "write clean code", "ensure quality"
+- Executable content (8 pts) — include 3+ code blocks with project commands (3 blocks = full points)
+- Concise config (6 pts) — total tokens across ALL config files must be under 2000 for full points (5000=4pts, 8000+=low)
+- Concrete instructions (4 pts) — every line should reference specific files, paths, or code in backticks. Avoid generic prose.
 - No directory tree listings (3 pts) — do NOT include tree-style file listings
-- No contradictions (2 pts) — consistent tool/style recommendations
+- Structured with headings (2 pts) — use at least 3 ## sections and bullet lists
 
-Coverage (20 pts):
-- Dependency coverage (10 pts) — CRITICAL: the exact dependency list is provided in your input. Mention AT LEAST 85% by name in CLAUDE.md. Full points at 85%+.
-- Service/MCP coverage (6 pts) — reference detected services
-- MCP completeness (4 pts) — full points if no external services detected
+Grounding (20 pts) — CRITICAL:
+- Project grounding (12 pts) — reference the project's actual directories and files by name. The scoring checks which project dirs/files appear in your config. Mention key directories from the file tree.
+- Reference density (8 pts) — use backticks and inline code extensively. Every file path, command, or identifier should be in backticks. Higher density of specific references = higher score.
 
 Accuracy (15 pts) — CRITICAL:
-- Documented commands exist (6 pts) — ONLY reference scripts from the provided package.json. Use the exact package manager.
-- Documented paths exist (4 pts) — ONLY reference file paths from the provided file tree.
-- Config freshness (5 pts) — config must match current code state
+- References valid (8 pts) — ONLY reference file paths that exist in the provided file tree. Every path in backticks is validated against the filesystem.
+- Config drift (7 pts) — config must match current code state
 
 Freshness & Safety (10 pts):
-- No secrets (4 pts), Permissions (2 pts — handled by caliber)
+- No secrets (4 pts), Permissions (2 pts — handled by caliber), Freshness (4 pts — handled by caliber)
 
 Bonus (5 pts): Hooks (2 pts), AGENTS.md (1 pt), OpenSkills format (2 pts) — handled by caliber
 
