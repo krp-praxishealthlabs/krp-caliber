@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import { readStdin } from '../learner/stdin.js';
 import {
   appendEvent,
+  appendPromptEvent,
   readAllEvents,
   readState,
   writeState,
@@ -12,8 +13,9 @@ import {
   acquireFinalizeLock,
   releaseFinalizeLock,
 } from '../learner/storage.js';
-import type { ToolEvent } from '../learner/storage.js';
+import type { ToolEvent, PromptEvent } from '../learner/storage.js';
 import { writeLearnedContent, readLearnedSection, migrateInlineLearnings } from '../learner/writer.js';
+import { sanitizeSecrets } from '../lib/sanitize.js';
 import {
   areLearningHooksInstalled,
   installLearningHooks,
@@ -30,16 +32,34 @@ import { validateModel } from '../llm/index.js';
 /** Minimum tool events required before running LLM analysis. */
 const MIN_EVENTS_FOR_ANALYSIS = 25;
 
-export async function learnObserveCommand(options: { failure?: boolean }) {
+export async function learnObserveCommand(options: { failure?: boolean; prompt?: boolean }) {
   try {
     const raw = await readStdin();
     if (!raw.trim()) return;
 
     const hookData = JSON.parse(raw);
+    const sessionId = hookData.session_id || hookData.conversation_id || 'unknown';
+
+    if (options.prompt) {
+      const event: PromptEvent = {
+        timestamp: new Date().toISOString(),
+        session_id: sessionId,
+        hook_event_name: 'UserPromptSubmit',
+        prompt_content: sanitizeSecrets(String(hookData.prompt_content || hookData.content || hookData.prompt || '')),
+        cwd: hookData.cwd || process.cwd(),
+      };
+      appendPromptEvent(event);
+
+      const state = readState();
+      state.eventCount++;
+      if (!state.sessionId) state.sessionId = sessionId;
+      writeState(state);
+      return;
+    }
 
     const event: ToolEvent = {
       timestamp: new Date().toISOString(),
-      session_id: hookData.session_id || hookData.conversation_id || 'unknown',
+      session_id: sessionId,
       hook_event_name: options.failure ? 'PostToolUseFailure' : 'PostToolUse',
       tool_name: hookData.tool_name || 'unknown',
       tool_input: hookData.tool_input || {},
@@ -52,7 +72,7 @@ export async function learnObserveCommand(options: { failure?: boolean }) {
 
     const state = readState();
     state.eventCount++;
-    if (!state.sessionId) state.sessionId = event.session_id;
+    if (!state.sessionId) state.sessionId = sessionId;
     writeState(state);
   } catch {
     // Hook observers must never crash or produce output

@@ -48,6 +48,17 @@ function makeEvent(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function makePromptEvent(overrides: Record<string, unknown> = {}) {
+  return {
+    timestamp: '2026-01-01T00:00:00Z',
+    session_id: 'sess-1',
+    hook_event_name: 'UserPromptSubmit' as const,
+    prompt_content: 'No, use pnpm not npm',
+    cwd: '/project',
+    ...overrides,
+  };
+}
+
 describe('analyzeEvents', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -167,6 +178,42 @@ describe('analyzeEvents', () => {
     expect(result.claudeMdLearnedSection).toBeNull();
     expect(result.skills).toBeNull();
     expect(result.explanations.length).toBeGreaterThan(0);
+  });
+
+  it('formats UserPromptSubmit events as USER_PROMPT', async () => {
+    mockedLlmCall.mockResolvedValue(JSON.stringify({
+      claudeMdLearnedSection: '- **[correction]** Use pnpm not npm',
+      skills: null,
+      explanations: ['User corrected tool usage'],
+    }));
+
+    const events = [makePromptEvent()];
+    await analyzeEvents(events);
+
+    const callArgs = mockedLlmCall.mock.calls[0][0];
+    expect(callArgs.prompt).toContain('[USER_PROMPT]');
+    expect(callArgs.prompt).toContain('User said:');
+    expect(callArgs.prompt).toContain('No, use pnpm not npm');
+  });
+
+  it('handles mixed tool and prompt events', async () => {
+    mockedLlmCall.mockResolvedValue(JSON.stringify({
+      claudeMdLearnedSection: null,
+      skills: null,
+      explanations: [],
+    }));
+
+    const events = [
+      makeEvent({ tool_name: 'Bash', tool_input: { command: 'npm install' } }),
+      makePromptEvent({ prompt_content: 'Stop, use pnpm instead' }),
+      makeEvent({ tool_name: 'Bash', tool_input: { command: 'pnpm install' } }),
+    ];
+    await analyzeEvents(events);
+
+    const callArgs = mockedLlmCall.mock.calls[0][0];
+    expect(callArgs.prompt).toContain('[SUCCESS]');
+    expect(callArgs.prompt).toContain('[USER_PROMPT]');
+    expect(callArgs.prompt).toContain('Stop, use pnpm instead');
   });
 
   it('returns skills from LLM response', async () => {
