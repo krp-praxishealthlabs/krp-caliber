@@ -1,0 +1,56 @@
+[
+  {
+    "title": "What is Caliber?",
+    "icon": "?",
+    "lines": [
+      "Caliber scans your project and generates tailored configs",
+      "for Claude Code, Cursor, and Codex — so your AI agent",
+      "understands your codebase from the start."
+    ]
+  },
+  {
+    "title": "Generated Configs",
+    "icon": "\u2699",
+    "lines": [
+      "CLAUDE.md and .cursor/rules/ tell your AI agent about",
+      "your build commands, conventions, architecture, and tools.",
+      "Think of them as onboarding docs — but for your copilot."
+    ]
+  },
+  {
+    "title": "Skills",
+    "icon": "\u26A1",
+    "lines": [
+      "Skills are reusable task-specific instructions your agent",
+      "loads on demand — deploy scripts, migration patterns, etc.",
+      "Run `caliber skills` to search the community registry."
+    ]
+  },
+  {
+    "title": "Keep Configs Fresh",
+    "icon": "\u21BB",
+    "lines": [
+      "As your code evolves, configs drift. `caliber refresh`",
+      "reads your recent git diffs and updates configs to match.",
+      "Add it as a post-commit hook for hands-free updates."
+    ]
+  },
+  {
+    "title": "Score Your Setup",
+    "icon": "\u2605",
+    "lines": [
+      "`caliber score` runs 20+ checks against your config —",
+      "grounding, accuracy, freshness — and gives a letter grade.",
+      "Aim for an A to get the most out of your AI agent."
+    ]
+  },
+  {
+    "title": "Quick Health Check",
+    "icon": "\u2764",
+    "lines": [
+      "`caliber status` shows what you have configured,",
+      "which hooks are active, and if anything needs attention.",
+      "It runs in under a second — great for CI checks too."
+    ]
+  }
+]
