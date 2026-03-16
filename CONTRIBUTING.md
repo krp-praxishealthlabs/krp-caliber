@@ -40,13 +40,36 @@ npm run build    # Compile
 - Tests live in `__tests__/` directories next to their source
 - Global LLM mocks are in `src/test/setup.ts`
 
+## Release channels
+
+Caliber has two release channels:
+
+| Branch | npm tag | Version format | Install |
+|--------|---------|----------------|---------|
+| `master` | `latest` | `1.20.0` | `npm i @rely-ai/caliber` |
+| `next` | `next` | `1.20.0-next.1742140800` | `npm i @rely-ai/caliber@next` |
+
+- **`master`** — stable releases. Merging here auto-publishes the official version.
+- **`next`** — pre-release channel for testing risky or in-progress changes. Pushing here auto-publishes a dev version that won't affect `latest`.
+
+### Testing with the next channel
+
+```bash
+# Install the latest pre-release
+npm i @rely-ai/caliber@next
+
+# Or run directly
+npx @rely-ai/caliber@next score
+```
+
 ## Pull requests
 
-1. Fork the repo and create a branch from `main`
+1. Fork the repo and create a branch from `master`
 2. Make your changes
 3. Add tests for new functionality
 4. Run `npm run test` and `npx tsc --noEmit`
 5. Use [conventional commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `refactor:`, `chore:`
+6. For risky changes, target the `next` branch instead of `master` to publish a pre-release first
 
 ## Reporting issues
 
