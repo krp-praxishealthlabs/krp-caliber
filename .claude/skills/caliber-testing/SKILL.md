@@ -1,93 +1,180 @@
 ---
 name: caliber-testing
-description: Writes Vitest tests for caliber modules following project patterns. LLM calls are globally mocked via src/test/setup.ts; override per-test with vi.spyOn. Use temp dirs (os.tmpdir()) for learner/storage tests, mock fs via memfs for fingerprint tests. Use when user says 'write test', 'add test', 'test coverage', or creates files in src/**/__tests__/. Do NOT re-mock llmCall globally—it's already stubbed. Do NOT use Jest syntax; use Vitest (describe, it, expect, vi).
+description: Writes Vitest tests for caliber modules following project patterns. LLM calls are globally mocked via src/test/setup.ts; override per-test with vi.spyOn. Use temp dirs (os.tmpdir()) for learner/storage tests, mock fs via memfs for fingerprint tests. Use when user says 'write test', 'add test', 'test coverage', or creates files in src/**/__tests__/. Do NOT re-mock llmCall globally — it's already stubbed.
 ---
 # Caliber Testing
 
 ## Critical
 
-- **LLM calls are pre-mocked globally in `src/test/setup.ts`** — do NOT add duplicate mocks for `llmCall` or `llmJsonCall`. Override behavior per-test with `vi.spyOn()` on the imported module.
-- **Use Vitest syntax only**: `describe()`, `it()`, `expect()`, `vi.spyOn()`, `vi.mock()`. No Jest matchers.
-- **Temp directories for I/O**: Tests that write files must use `os.tmpdir()`. Clean up in `afterEach()`.
-- **Mock fs with memfs for fingerprint tests**: Use `vol` from `memfs` to simulate file trees.
-- **Test file location**: Colocated with source in the same module directory.
+- **Global LLM mock already active**: `src/test/setup.ts` stubs `llmCall` and `llmJsonCall`. Do NOT re-mock globally. Override per-test only with `vi.spyOn(llmModule, 'llmCall').mockResolvedValue(...)`.
+- **Test file location**: Place in `src/<module>/__tests__/<filename>.test.ts` matching the source structure (e.g., `src/learner/storage.ts` → `src/learner/__tests__/storage.test.ts`).
+- **Import setup**: Always import `import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'` and ensure `src/test/setup.ts` is loaded (happens automatically via Vitest config).
+- **No process.exit in tests**: Wrap command execution in try/catch to avoid premature termination. Use `expect(() => { ... }).toThrow()` for error assertions.
 
 ## Instructions
 
-1. **Set up test file structure**:
+1. **Determine test type and set up context**
+   - For **learner/storage tests**: Import `os`, `path`, `fs/promises`. Create temp dir with `const tmpDir = path.join(os.tmpdir(), 'caliber-test-' + Date.now())` in `beforeEach`. Clean up in `afterEach` with `await fs.rm(tmpDir, { recursive: true, force: true })`.
+   - For **fingerprint tests**: Import `memfs`, create virtual fs with `const { vol } = memfs()`. Inject via `vi.stubGlobal('fs', vol)` in setup.
+   - For **AI module tests** (generate.ts, refine.ts): Mock `llmJsonCall` at the test level using `vi.spyOn(llmModule, 'llmJsonCall').mockResolvedValue({ ... })`.
+   - For **command tests**: Import the command function from `src/commands/<name>.ts`. Mock `writeSetup`, telemetry, and fingerprint calls as needed.
+   - **Verify**: Confirm the module under test has a clear interface and dependencies are mockable.
+
+2. **Write describe block with meaningful suite name**
+   - Use `describe('<module name> — <functionality>', () => { ... })`.
+   - Example: `describe('learner storage — persist and load', () => { ... })`.
+   - **Verify**: Block name reflects what is being tested, not generic "tests".
+
+3. **Set up fixtures and mocks in beforeEach**
+   - For **learner**: Initialize temp directory, create sample `.learner/` structure if needed.
+   - For **fingerprint**: Set up virtual fs with realistic file tree using `vol.fromJSON({ '/path/file': 'content' })`.
+   - For **AI**: Call `vi.spyOn(llmModule, 'llmJsonCall')` with a `.mockResolvedValue(mockResponse)` or `.mockRejectedValue(error)` for each test.
+   - Mock common dependencies: `vi.mock('src/telemetry', () => ({ trackEvent: vi.fn() }))`.
+   - **Verify**: All mocks and fixtures are isolated; no state leaks between tests.
+
+4. **Write test cases using it() with descriptive names**
+   - Test **happy path**: `it('should persist and load configuration', async () => { ... })`.
+   - Test **error cases**: `it('should throw on corrupt JSON', async () => { ... })`.
+   - Test **edge cases**: `it('should handle missing files gracefully', async () => { ... })`.
+   - **Pattern**: `const result = await functionUnderTest(args); expect(result).toEqual(expected);`.
+   - For **async operations**, always `await` and use `async () => { ... }` in it().
+   - **Verify**: Each test is independent; passing or failing one does not affect others.
+
+5. **Assert using expect() with clear matchers**
+   - Use `expect(actual).toEqual(expected)` for objects, arrays.
+   - Use `expect(fn).toHaveBeenCalledWith(args)` for function calls (on mocks).
+   - Use `expect(() => { throwingCode() }).toThrow(ErrorClass)` for synchronous errors.
+   - Use `expect(asyncFn()).rejects.toThrow(ErrorClass)` for async errors.
+   - Use `expect(fs.existsSync(path)).toBe(true)` for file existence.
+   - **Verify**: Assertions are specific (e.g., check both shape and values, not just truthiness).
+
+6. **Clean up resources in afterEach**
+   - For **temp dirs**: `await fs.rm(tmpDir, { recursive: true, force: true })`.
+   - For **mocks**: `vi.restoreAllMocks()` (clears per-test overrides; global mocks persist).
+   - For **virtual fs**: `vol.reset()` if using memfs.
+   - **Verify**: No hanging processes, open files, or lingering state before next test.
+
+## Examples
+
+### Example 1: Learner Storage Test
+
+**User says**: "Add test for learner storage persist method"
+
+**File**: `src/learner/__tests__/storage.test.ts`
 
 ```typescript
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { loadLearnings } from '../storage.js';
-```
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import fs from 'fs/promises';
+import path from 'path';
+import os from 'os';
+import { persistLearnings, loadLearnings } from '../storage';
 
-2. **Override LLM mock per-test** using `vi.spyOn()` (do NOT re-mock globally):
+describe('learner storage — persist and load', () => {
+  let tmpDir: string;
 
-```typescript
-import * as llmModule from '../../llm/index.js';
+  beforeEach(() => {
+    tmpDir = path.join(os.tmpdir(), 'caliber-test-' + Date.now());
+  });
 
-it('uses custom LLM response', async () => {
-  vi.spyOn(llmModule, 'llmCall').mockResolvedValueOnce({ text: 'mocked' });
-  const result = await generate();
-  expect(result).toMatch(/mocked/);
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('should persist and load configuration', async () => {
+    const data = { insights: 'test', metadata: { version: 1 } };
+    await persistLearnings(tmpDir, data);
+    const loaded = await loadLearnings(tmpDir);
+    expect(loaded).toEqual(data);
+  });
+
+  it('should throw on corrupt JSON', async () => {
+    const filePath = path.join(tmpDir, '.learner', 'data.json');
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(filePath, 'not valid json');
+    await expect(loadLearnings(tmpDir)).rejects.toThrow(SyntaxError);
+  });
 });
 ```
 
-3. **File I/O tests — use temp directories**:
+### Example 2: Fingerprint Code Analysis Test (with memfs)
+
+**User says**: "Write test for fingerprint code analysis"
+
+**File**: `src/fingerprint/__tests__/code-analysis.test.ts`
 
 ```typescript
-import { join } from 'path';
-import { tmpdir } from 'os';
-import { rmSync, writeFileSync } from 'fs';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { memfs } from 'memfs';
+import { analyzeCode } from '../code-analysis';
 
-let testDir: string;
-beforeEach(() => { testDir = join(tmpdir(), `test-${Date.now()}`); });
-afterEach(() => { rmSync(testDir, { recursive: true, force: true }); });
+describe('fingerprint code analysis — parse imports and patterns', () => {
+  let vol: memfs.IVolume;
 
-it('loads learnings from CALIBER_LEARNINGS.md', async () => {
-  writeFileSync(join(testDir, 'CALIBER_LEARNINGS.md'), '# Learnings\n- learned X', 'utf8');
-  const learnings = await loadLearnings({ root: testDir });
-  expect(learnings).toMatch(/learned X/);
+  beforeEach(() => {
+    const { vol: volumeInstance } = memfs();
+    vol = volumeInstance;
+    vi.stubGlobal('fs', vol);
+  });
+
+  it('should detect TypeScript imports', async () => {
+    vol.fromJSON({
+      '/src/index.ts': 'import { foo } from "./bar";'
+    });
+    const result = await analyzeCode('/src/index.ts');
+    expect(result.imports).toContain('./bar');
+  });
 });
 ```
 
-4. **Fingerprint tests — use memfs**:
+### Example 3: AI Generate Module Test (with LLM mock)
+
+**User says**: "Test the generate module AI prompt flow"
+
+**File**: `src/ai/__tests__/generate.test.ts`
 
 ```typescript
-import { vol } from 'memfs';
-vi.mock('fs');
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import * as llmModule from '../../llm';
+import { generateConfig } from '../generate';
 
-beforeEach(() => { vol.reset(); });
-afterEach(() => { vol.reset(); });
+describe('ai generate — CLAUDE.md creation', () => {
+  beforeEach(() => {
+    vi.spyOn(llmModule, 'llmJsonCall').mockResolvedValue({
+      claudeMd: '# My Config',
+      metadata: { model: 'claude-sonnet-4-6' }
+    });
+  });
 
-it('detects Node.js project from package.json', () => {
-  vol.fromJSON({ '/project/package.json': JSON.stringify({ name: 'test' }) });
-  const platforms = detectPlatforms('/project');
-  expect(platforms).toContain('node');
+  it('should call LLM with fingerprint and return config', async () => {
+    const fingerprint = { framework: 'Node.js', language: 'TypeScript' };
+    const result = await generateConfig(fingerprint);
+    expect(llmModule.llmJsonCall).toHaveBeenCalledWith(
+      expect.objectContaining({ model: expect.any(String) }),
+      expect.any(String)
+    );
+    expect(result).toHaveProperty('claudeMd');
+  });
 });
-```
-
-5. **Run and validate**:
-
-```bash
-npx vitest run src/learner/
-npm run test
-npm run test:coverage
 ```
 
 ## Common Issues
 
-**"llmCall is not a function" or spyOn fails**
-- Global mock in `src/test/setup.ts` wraps `llmCall` as `vi.fn()` — use `vi.mocked(llmCall).mockResolvedValue(...)` instead of `vi.spyOn()`
+**Issue**: "TypeError: llmCall is not a function" or "llmJsonCall is not mocked"
+- **Cause**: Test is trying to mock at import time, but global setup already applied.
+- **Fix**: Use `vi.spyOn(llmModule, 'llmCall').mockResolvedValue(...)` in `beforeEach`, not in a top-level `vi.mock()` call. Ensure `import * as llmModule from 'src/llm'` is present.
 
-**Temp files persist after test runs**
-- Wrap cleanup in try/finally: `afterEach(() => { try { rmSync(testDir, { recursive: true }) } catch {} })`
+**Issue**: "ENOENT: no such file or directory" in learner storage test
+- **Cause**: Temp directory was not created, or path is incorrect.
+- **Fix**: Call `await fs.mkdir(path.dirname(filePath), { recursive: true })` before writing. Verify tmpDir is created in `beforeEach`.
 
-**memfs not intercepting fs calls**
-- Move `vi.mock('fs')` to top of file before any imports; verify `memfs` is in devDependencies
+**Issue**: "Cannot find module 'memfs'" in fingerprint test
+- **Cause**: memfs is listed in dependencies but virtual fs is not set up.
+- **Fix**: Import `import { memfs } from 'memfs'` and call `const { vol } = memfs()` in `beforeEach`. Do NOT call `vi.stubGlobal('fs', vol)` until after vol is created.
 
-**Test times out waiting for async**
-- Add timeout option: `it('name', async () => { ... }, 5000)`
+**Issue**: "process.exit called during test, exiting with code 1"
+- **Cause**: Command function calls `process.exit()` on error.
+- **Fix**: Wrap command in try/catch and return error object. Or mock `process.exit` with `vi.spyOn(process, 'exit').mockImplementation(() => {})`. Always assert error state instead of relying on exit.
 
-**"ReferenceError: describe is not defined"**
-- Add `import { describe, it, expect } from 'vitest'` to test file; verify `vitest.config.ts` exists
+**Issue**: "Test timeout exceeded"
+- **Cause**: Async operation hanging (e.g., fs.rm not completing, mock not resolving).
+- **Fix**: Add explicit `await` before all async calls. Use `vi.useFakeTimers()` if testing timers. Increase timeout with `it('name', async () => {...}, 10000)` only after confirming no true hangs.

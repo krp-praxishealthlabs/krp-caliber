@@ -14,3 +14,4 @@ alwaysApply: false
 - Run single file: `npx vitest run src/scoring/__tests__/accuracy.test.ts`
 - Spawn mock return values must include `stderr: { on: vi.fn() }` when stdio is `['pipe', 'pipe', 'pipe']`
 - Tests for `src/llm/__tests__/index.test.ts` must call `vi.unmock('../index.js')` and `resetProvider()` in beforeEach
+- Tests for `src/llm/__tests__/model-recovery.test.ts` must call `vi.unmock('../model-recovery.js')` in beforeEach

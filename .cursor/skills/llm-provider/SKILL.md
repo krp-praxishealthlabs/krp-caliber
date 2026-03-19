@@ -1,182 +1,137 @@
 ---
 name: llm-provider
-description: Implements or modifies an LLM provider in src/llm/ implementing the LLMProvider interface from src/llm/types.ts. All calls go through src/llm/index.ts (llmCall, llmJsonCall). Use when user says 'add provider', 'new LLM', 'support model X', or modifies src/llm/. Do NOT use for calling LLM from commands—use llm-call skill instead.
+description: Implements or modifies an LLM provider in src/llm/ implementing LLMProvider interface (call()+stream()) from src/llm/types.ts. All calls route through src/llm/index.ts. Use when user says 'add provider', 'new LLM', 'support model X', 'integrate API'. Do NOT call providers directly from commands—always route through llmCall() or llmJsonCall(). Do NOT add new provider types without updating src/llm/index.ts provider resolution logic.
 ---
 # LLM Provider
 
 ## Critical
 
-- **Must implement `LLMProvider` interface** from `src/llm/types.ts` — every provider exports `{ call, jsonCall, streamingCall, estimate }`
-- **All provider calls flow through `src/llm/index.ts`** (`llmCall`, `llmJsonCall`, `streamingCall`) — never call provider directly from commands
-- **Error handling is mandatory**: wrap calls in try/catch; return or re-throw `LLMError` with `code` and `message` matching `src/llm/types.ts`
-- **Register new providers** in `src/llm/config.ts` and `src/llm/index.ts` detection logic before any usage
-- **Model context windows** must be added to `MODEL_CONTEXT_WINDOWS` in `src/llm/config.ts` before `estimate()` is called
+- **All LLM calls from commands MUST use `llmCall()` or `llmJsonCall()` from `src/llm/index.ts`**. Never instantiate or call a provider directly.
+- **Every provider MUST implement `LLMProvider` interface** from `src/llm/types.ts`: `call(params: LLMCallParams): Promise<string>` and `stream(params: LLMStreamParams): AsyncIterable<string>`.
+- **Provider detection logic lives in `src/llm/config.ts`** (`getProvider()` function). If adding a new provider, update the detection chain BEFORE adding the provider file.
+- **Error handling**: All providers MUST detect transient errors (rate limits, timeouts, 502/503) and throw `TransientError` so callers can retry. Reference `src/llm/model-recovery.ts` and `TRANSIENT_ERRORS` in `src/llm/index.ts`.
+- **Token estimation**: Use `estimateTokens()` from `src/llm/utils.ts` to pre-check request size and avoid oversized requests.
 
 ## Instructions
 
-1. **Define provider interface compliance**
-   - Study `src/llm/types.ts` — verify these exports exist: `LLMProvider`, `LLMCall`, `LLMError`, `StreamingCallOptions`
-   - Ensure your provider will have: `call(req)`, `jsonCall(req)`, `streamingCall(req, onChunk)`, `estimate(text)`
-   - Verify: "I can map my provider's request/response to `LLMCall` and return `{ content, model, stop_reason, usage }` format"
+1. **Verify provider interface in `src/llm/types.ts`**
+   - Confirm `LLMProvider` has `call(params: LLMCallParams): Promise<string>` and `stream(params: LLMStreamParams): AsyncIterable<string>`.
+   - Check that `LLMCallParams` and `LLMStreamParams` match your API's model, temperature, max_tokens, system, messages.
+   - Validation: `npx tsc --noEmit` should pass before proceeding.
 
-2. **Create provider file** (e.g., `src/llm/new-provider.ts`)
-   - Copy structure from existing provider: `src/llm/anthropic.ts` or `src/llm/openai-compat.ts`
-   - Import types: `import { LLMProvider, LLMCall, LLMError } from './types'`
-   - Export a function `export const newProvider = (): LLMProvider => ({ ... })`
-   - Validate: File compiles with `npx tsc --noEmit`
+2. **Create provider file at `src/llm/{provider-name}.ts`**
+   - Follow naming: `anthropic.ts`, `openai-compat.ts`, `vertex.ts` (kebab-case, no dots before extension).
+   - Export a class: `export class {ProviderName}LLMProvider implements LLMProvider { ... }`.
+   - Add constructor to accept config (API key, project ID, endpoint) from environment or passed argument.
+   - Validation: File must compile with `npx tsc --noEmit` before next step.
 
 3. **Implement `call()` method**
-   - Accept `LLMCall` request (model, messages, system, temperature, max_tokens)
-   - Translate to provider's API format (headers, payload, auth)
-   - Return `{ content: string, model: string, stop_reason: string, usage: { input_tokens, output_tokens } }`
-   - Handle non-200 responses as `LLMError` with `code: 'invalid_request_error'` or `'rate_limit_error'` (from `src/llm/types.ts`)
-   - Validate: Error has `message` and `code` fields matching provider's actual error
+   - Accept `params: LLMCallParams` (model, system, messages, temperature, max_tokens).
+   - Make HTTP/SDK request to provider (Anthropic SDK, OpenAI SDK, REST, etc.).
+   - Return `string` (the assistant's text response).
+   - On error: throw `TransientError` for rate limits (429), timeouts, 502/503; throw `Error` for auth/model/bad request.
+   - Wrap in try/catch; log errors via `console.error()` before throwing.
+   - Validation: Test with `npm run test` against mocked provider responses.
 
-4. **Implement `jsonCall()` method**
-   - Accept same `LLMCall` + add `schema?: z.ZodSchema` for structured output
-   - Use `extractJson()` from `src/llm/utils.ts` if provider doesn't natively support JSON mode
-   - Return same format as `call()` but content is valid JSON string
-   - Validate: `JSON.parse(response.content)` succeeds
+4. **Implement `stream()` method**
+   - Accept `params: LLMStreamParams` (same fields as call()).
+   - Yield `string` chunks as they arrive (no buffering whole response).
+   - Return `AsyncIterable<string>` (use `async function*`).
+   - On error: catch and yield error message or throw `TransientError` before yielding any chunk.
+   - Validation: Verify stream completes without deadlock using `src/test/` helpers or manual test.
 
-5. **Implement `streamingCall()` method**
-   - Accept `LLMCall` + `onChunk: (chunk) => void` callback
-   - Stream response token-by-token, calling `onChunk({ type: 'text', text })` for each token
-   - On complete, call `onChunk({ type: 'message_stop' })` and return final `LLMCall` response
-   - Validate: At least one `onChunk` callback fires; final return matches `call()` format
+5. **Update provider detection in `src/llm/config.ts`**
+   - Open `getProvider()` function (typically returns provider instance based on env vars).
+   - Add conditional: `if (process.env.{YOUR_KEY}) { return new {ProviderName}LLMProvider(...) }`.
+   - Order matters: check most specific (e.g., VERTEX_PROJECT_ID) before generic (e.g., OPENAI_API_KEY).
+   - Validation: Run `caliber init` in test project; verify provider is auto-detected.
 
-6. **Implement `estimate()` method**
-   - Count tokens using provider's tokenizer or approximation (Claude ~4 chars/token)
-   - Return `{ input_tokens: number, output_tokens: number }`
-   - Validate: `estimate('hello')` returns object with both fields > 0
+6. **Export provider from `src/llm/index.ts`**
+   - Add import: `import { {ProviderName}LLMProvider } from './{provider-name}'`.
+   - Ensure `llmCall()` and `llmJsonCall()` use the result of `getProvider()` (already hooked up; verify no changes needed).
+   - Validation: `npm run test` passes; no unused imports.
 
-7. **Register provider in `src/llm/config.ts`**
-   - Add model names to `DEFAULT_MODELS` or `DEFAULT_FAST_MODELS` array (e.g., `'gpt-4o'`)
-   - Add context window to `MODEL_CONTEXT_WINDOWS`: `'gpt-4o': 128000`
-   - Validate: Models appear in both places if they are new
-
-8. **Register detection in `src/llm/index.ts`**
-   - Add condition in `resolveProvider()` function (checks env vars, config, available auth)
-   - Return provider instance: `return newProvider()`
-   - Order matters: check most specific (env + key combo) before generic
-   - Validate: `caliber score` or any command detects your provider without explicit `--provider` flag
-
-9. **Test provider end-to-end**
-   - Create `src/llm/__tests__/new-provider.test.ts` following `src/llm/__tests__/anthropic.test.ts` pattern
-   - Test: `call()`, `jsonCall()`, `estimate()`, error scenarios
-   - Run: `npx vitest run src/llm/__tests__/new-provider.test.ts`
-   - Validate: All tests pass; no type errors from `npx tsc --noEmit`
-
-10. **Integration test via llmCall**
-    - In `src/llm/index.ts` tests or new command test, call `llmCall({ model: 'your-model', ... })`
-    - Verify it routes to your provider and returns valid response
-    - Validate: Response content is non-empty string; usage fields exist
+7. **Add tests in `src/llm/__tests__/{provider-name}.test.ts`**
+   - Test `call()` with mocked responses (use `vi.mock()` or `memfs` for file-based mocks).
+   - Test `stream()` yielding chunks, completing without error.
+   - Test error cases: 429 throws `TransientError`, 401 throws `Error`.
+   - Validation: `npm run test:coverage` — aim for >80% coverage on provider file.
 
 ## Examples
 
-### Example: Add OpenAI-compatible provider
-
-**User says:** "Add support for Together AI (openai-compatible)"
+**User says:** "Add support for Claude models via a custom endpoint."
 
 **Actions:**
-1. Create `src/llm/together-ai.ts`:
-```typescript
-import { LLMProvider, LLMCall, LLMError } from './types';
-import { estimateTokens } from './utils';
+1. Check `src/llm/types.ts` confirms `LLMProvider` interface.
+2. Create `src/llm/custom-claude.ts`:
+   ```typescript
+   import { LLMProvider, LLMCallParams, LLMStreamParams } from './types';
+   import { TransientError } from './model-recovery';
+   
+   export class CustomClaudeLLMProvider implements LLMProvider {
+     constructor(private endpoint: string, private apiKey: string) {}
+   
+     async call(params: LLMCallParams): Promise<string> {
+       try {
+         const res = await fetch(`${this.endpoint}/messages`, {
+           method: 'POST',
+           headers: { 'Authorization': `Bearer ${this.apiKey}` },
+           body: JSON.stringify({
+             model: params.model,
+             system: params.system,
+             messages: params.messages,
+             temperature: params.temperature,
+             max_tokens: params.max_tokens,
+           }),
+         });
+         if (res.status === 429 || res.status === 502 || res.status === 503) throw new TransientError(`${res.status}`);
+         if (!res.ok) throw new Error(`HTTP ${res.status}`);
+         const data = await res.json();
+         return data.content[0].text;
+       } catch (e) {
+         if (e instanceof TransientError) throw e;
+         throw new Error(`CustomClaude call failed: ${e}`);
+       }
+     }
+   
+     async *stream(params: LLMStreamParams): AsyncIterable<string> {
+       // Similar to call() but with stream endpoint and yield chunks.
+     }
+   }
+   ```
+3. Update `src/llm/config.ts`:
+   ```typescript
+   if (process.env.CUSTOM_CLAUDE_ENDPOINT && process.env.CUSTOM_CLAUDE_API_KEY) {
+     return new CustomClaudeLLMProvider(
+       process.env.CUSTOM_CLAUDE_ENDPOINT,
+       process.env.CUSTOM_CLAUDE_API_KEY
+     );
+   }
+   ```
+4. Export in `src/llm/index.ts`.
+5. Add test file `src/llm/__tests__/custom-claude.test.ts` with mocked fetch.
+6. Run `npm run test` and verify.
 
-export const togetherAI = (): LLMProvider => ({
-  call: async (req) => {
-    const url = 'https://api.together.xyz/v1/chat/completions';
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${process.env.TOGETHER_API_KEY}` },
-      body: JSON.stringify({
-        model: req.model,
-        messages: req.messages,
-        temperature: req.temperature ?? 0.7,
-        max_tokens: req.max_tokens,
-      }),
-    });
-    if (!res.ok) {
-      const data = await res.json();
-      throw new LLMError(data.error?.message || 'API error', 'invalid_request_error');
-    }
-    const data = await res.json();
-    return {
-      content: data.choices[0].message.content,
-      model: req.model,
-      stop_reason: data.choices[0].finish_reason,
-      usage: { input_tokens: data.usage.prompt_tokens, output_tokens: data.usage.completion_tokens },
-    };
-  },
-  jsonCall: async (req) => {
-    const res = await this.call(req);
-    if (req.schema) {
-      req.schema.parse(JSON.parse(res.content));
-    }
-    return res;
-  },
-  streamingCall: async (req, onChunk) => {
-    // Implement streaming via SSE
-    const res = await fetch('https://api.together.xyz/v1/chat/completions', { /* ... */ });
-    const reader = res.body?.getReader();
-    // ... parse SSE, call onChunk() per token
-    return { content: '', model: req.model, stop_reason: 'stop', usage: { input_tokens: 0, output_tokens: 0 } };
-  },
-  estimate: (text) => estimateTokens(text),
-});
-```
-
-2. In `src/llm/config.ts`:
-```typescript
-export const DEFAULT_MODELS = [
-  'together-ai/mistral-7b',
-  // ...
-];
-export const MODEL_CONTEXT_WINDOWS = {
-  'together-ai/mistral-7b': 32768,
-  // ...
-};
-```
-
-3. In `src/llm/index.ts` `resolveProvider()`:
-```typescript
-if (process.env.TOGETHER_API_KEY) {
-  return togetherAI();
-}
-```
-
-**Result:** `caliber score` now auto-detects Together AI; `llmCall({ model: 'together-ai/mistral-7b' })` works end-to-end.
+**Result:** Commands like `caliber init` now detect and use the custom endpoint without modification.
 
 ## Common Issues
 
-**"Cannot find name 'LLMProvider'" or type errors**
-- Verify import: `import { LLMProvider, LLMCall, LLMError } from './types'` exists in your file
-- Run `npx tsc --noEmit` to confirm all imports resolve
-- Check `src/llm/types.ts` was not renamed/moved
+- **Error: "Provider not detected when env var is set"**
+  - Check `src/llm/config.ts` — is your env var check above other fallbacks? Move it higher in the `if` chain.
+  - Verify env var name matches exactly: `echo $CUSTOM_CLAUDE_ENDPOINT`.
+  - Confirm provider is exported in `src/llm/index.ts`.
 
-**"Provider not detected; falls back to default"**
-- Verify env var is set: `echo $PROVIDER_API_KEY`
-- Verify `resolveProvider()` in `src/llm/index.ts` checks that env var BEFORE other providers
-- Check: Is your provider condition reachable? (No early `return` blocking it)
-- Test: Call `caliber config` and check `Detected LLM provider` line
+- **Error: "Cannot find module 'src/llm/{provider-name}'"**
+  - Verify file path is `src/llm/{provider-name}.ts` (not `.js`, not in subdirectory).
+  - Run `npm run build` to compile TypeScript to dist/; check dist/ has the file.
 
-**"LLMError: 'X' is not assignable to type code"**
-- Check `src/llm/types.ts` `LLMError` for allowed `code` values (e.g., `'invalid_request_error'`, `'rate_limit_error'`, `'auth_error'`)
-- Use `code` that exactly matches the type union
-- Example: `throw new LLMError(msg, 'auth_error')` ✓; `throw new LLMError(msg, 'bad_auth')` ✗
+- **Error: "Transient errors not retried, request fails immediately"**
+  - Verify you throw `TransientError` (not `Error`) for 429, 502, 503, timeouts.
+  - Check `src/llm/index.ts` `llmCall()` has retry logic (already present; ensure no overrides).
+  - Test: `npm run test -- src/llm/__tests__/{provider-name}.test.ts`.
 
-**"estimate() returns 0 tokens or crashes"**
-- Verify provider's tokenizer is available (not just API-side)
-- Fall back to `estimateTokens()` from `src/llm/utils.ts`: `return estimateTokens(text)`
-- Check: `estimate('')` should return `{ input_tokens: 0, output_tokens: 0 }`; non-empty text should be > 0
-
-**"jsonCall returns invalid JSON from provider"**
-- Use `extractJson()` from `src/llm/utils.ts` to extract JSON from markdown blocks: `const json = extractJson(raw); return { ...res, content: json }`
-- Verify schema with `schema?.parse(JSON.parse(content))` AFTER extraction
-- Check: API might return `\`\`\`json { ... } \`\`\`` — strip before parsing
-
-**"streamingCall() chunks never arrive; response hangs"**
-- Check provider supports streaming (SSE, websocket, or delimited response)
-- Verify `onChunk()` is called per token, not per message
-- Test with small model + short prompt first (avoids timeout)
-- Validate: At least one `onChunk({ type: 'text', ... })` fires before `message_stop`
+- **Error: "Stream method times out or yields nothing"**
+  - Ensure `stream()` returns `AsyncIterable<string>` and uses `async function*`.
+  - Never buffer the entire response; yield chunks as they arrive.
+  - Add timeout to stream read loop: `setTimeout(() => throw new Error('timeout'), 30000)`.
+  - Test with `npm run test:watch` and add `console.log()` in stream yields to debug.

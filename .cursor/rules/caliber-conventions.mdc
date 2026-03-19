@@ -14,3 +14,7 @@ alwaysApply: true
 - LLM calls go through `src/llm/index.ts` (`llmCall`, `llmJsonCall`) — never import provider SDKs directly
 - All commands in `src/commands/` must be registered in `src/cli.ts` wrapped with `tracked()`
 - Backups written to `.caliber/backups/` · manifest at `.caliber/manifest.json`
+- Seat-based providers (`cursor`, `claude-cli`): spawn with `stdio: ['pipe', 'pipe', 'pipe']` — never `inherit` for stderr
+- Use `parseSeatBasedError()` from `src/llm/seat-based-errors.ts` for Cursor and Claude CLI error parsing
+- Stream parsing for `agent --print --output-format stream-json`: use `src/ai/stream-parser.ts`
+- Staged files written to `.caliber/staged/proposed/` via `src/writers/staging.ts`

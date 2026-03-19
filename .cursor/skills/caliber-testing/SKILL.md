@@ -1,142 +1,118 @@
 ---
 name: caliber-testing
-description: Writes Vitest tests for caliber modules following project patterns. LLM calls are globally mocked in src/test/setup.ts via vi.mock('@/llm'). Override per-test with vi.spyOn for specific behavior. Use temp dirs (os.tmpdir()) for learner/fingerprint file tests, memfs for isolated fs mocking. Use when user says 'write test', 'add test', 'test coverage', or when adding files to src/**/__tests__/. Do NOT re-mock llmCall globally—it's pre-mocked. Do NOT test LLM integrations; mock them. Do NOT skip validation of mock setup before running tests.
+description: Writes Vitest tests for caliber modules following project patterns. LLM calls globally mocked via src/test/setup.ts; override per-test with vi.spyOn. Use temp dirs (os.tmpdir()) for learner/storage tests, memfs for fingerprint tests. Use when user says 'write test', 'add test', 'test coverage', 'unit test'. Do NOT re-mock llmCall globally or use localStorage-like APIs directly.
 ---
-# caliber-testing
+# Caliber Testing
 
 ## Critical
 
-- **LLM calls are already mocked globally** in `src/test/setup.ts` via `vi.mock('@/llm')`. Do NOT re-mock `llmCall` or `llmJsonCall` globally; it breaks the test suite.
-- **Override per-test** using `vi.spyOn(llmModule, 'llmCall')` if a specific test needs custom behavior.
-- **Never test actual LLM API calls**. All LLM interactions must be mocked.
-- **Always verify mock setup** by running the test file in isolation before adding to the suite:
-  ```bash
-  npx vitest run src/path/__tests__/file.test.ts
-  ```
-- Test file location: `src/<module>/__tests__/<module>.test.ts` (colocated with source).
+- **Global LLM mock already active**: All tests inherit `vi.mock()` from `src/test/setup.ts`. Do NOT re-mock `src/llm/index.ts` or `llmCall`. Override specific test behavior with `vi.spyOn(llmModule, 'llmCall').mockResolvedValueOnce({...})`.
+- **Imports matter**: Always import test utilities from `src/test/setup.ts` or `vitest`. Import the module under test with correct path (e.g., `import { scanLocalState } from '../scanner'`).
+- **Temp directories for I/O**: Use `os.tmpdir()` + `fs.mkdtempSync()` for learner/storage tests. Clean up with `fs.rmSync(dir, { recursive: true })`.
+- **memfs for file-tree**: Fingerprint file-tree tests use `memfs` virtual filesystem (`import { vol } from 'memfs'`). Initialize with `vol.fromJSON({...})` before each test.
+- **Type safety**: All test code must be TypeScript. Use exact return types from `src/**/*.ts` (e.g., `ConfigState`, `ScanResult`, `ErrorResponse`).
 
 ## Instructions
 
-1. **Set up test file structure**
-   - Create file: `src/<module>/__tests__/<module-name>.test.ts`
-   - Import test utilities:
-     ```typescript
-     import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-     import { moduleName } from '../index';
-     import * as llmModule from '@/llm';
-     ```
-   - Verify global LLM mock is active by checking `src/test/setup.ts` imports `@/llm` with `vi.mock()`.
+1. **Create test file in same directory structure as source**
+   - Source: `src/fingerprint/git.ts` → Test: `src/fingerprint/__tests__/git.test.ts`
+   - Source: `src/commands/init.ts` → Test: `src/commands/__tests__/init.test.ts`
+   - Verify no test file already exists before creating.
 
-2. **Mock external dependencies per test**
-   - For fingerprint tests: use `memfs` to mock filesystem without touching disk:
-     ```typescript
-     import { vol } from 'memfs';
-     beforeEach(() => {
-       vol.reset();
-       vol.fromJSON({ '/project/file.ts': 'const x = 1;' });
-     });
-     afterEach(() => vol.reset());
-     ```
-   - For learner/file-based tests: use `os.tmpdir()` for real temp directories:
-     ```typescript
-     import os from 'os';
-     import path from 'path';
-     const tmpDir = path.join(os.tmpdir(), `caliber-test-${Date.now()}`);
-     ```
-   - Verify before proceeding: Run `npx vitest run src/<module>/__tests__/file.test.ts` and confirm no file I/O errors.
+2. **Import test setup and dependencies**
+   ```typescript
+   import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+   import { llmCall, llmJsonCall } from '../../llm';
+   // Global mock from src/test/setup.ts handles llmCall already
+   ```
+   - For learner tests: `import * as os from 'os'; import * as fs from 'fs'`.
+   - For fingerprint file-tree tests: `import { vol } from 'memfs'`.
+   - Verify imports resolve without circular dependencies.
 
-3. **Mock LLM behavior per-test (override global mock)**
-   - If test needs specific LLM response, use `vi.spyOn()`:
-     ```typescript
-     it('should generate config', async () => {
-       vi.spyOn(llmModule, 'llmJsonCall').mockResolvedValueOnce({
-         content: { rules: ['rule1'] },
-       });
-       const result = await generate();
-       expect(result).toEqual({ rules: ['rule1'] });
-     });
-     ```
-   - Verify mock is called: Use `expect(llmModule.llmJsonCall).toHaveBeenCalledWith(...)`.
-   - **Do NOT** use `vi.mock()` inside the test file for LLM—it's already mocked globally.
+3. **Set up beforeEach/afterEach lifecycle**
+   - **For temp dir tests**: `beforeEach(() => { testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'caliber-test-')); })` and `afterEach(() => { fs.rmSync(testDir, { recursive: true }); })`.
+   - **For memfs tests**: `beforeEach(() => { vol.reset(); vol.fromJSON({...}); })` and `afterEach(() => { vol.reset(); })`.
+   - **For CLI/command tests**: Call `vi.clearAllMocks()` in `afterEach`.
+   - Verify cleanup executes even if test fails.
 
-4. **Test error handling with mock failures**
-   - Mock transient errors (from `src/llm/index.ts` `TRANSIENT_ERRORS`):
-     ```typescript
-     it('should retry on transient error', async () => {
-       vi.spyOn(llmModule, 'llmCall')
-         .mockRejectedValueOnce(new Error('RATE_LIMIT_EXCEEDED'))
-         .mockResolvedValueOnce({ content: 'success' });
-       const result = await callWithRetry();
-       expect(result.content).toBe('success');
-     });
-     ```
-   - Verify mock was called twice: `expect(llmModule.llmCall).toHaveBeenCalledTimes(2)`.
+4. **Write test case matching existing test patterns**
+   - Reference `src/**/__tests__/*.test.ts` for style.
+   - Test structure: `it('should [behavior] when [condition]', async () => { ... })`.
+   - Assert on return values and side effects (file writes, LLM calls).
+   - If testing LLM integration: `expect(llmCall).toHaveBeenCalledWith(expect.objectContaining({...}))`.
+   - Verify test is deterministic (no random delays, use `vi.useFakeTimers()` if needed).
 
-5. **Run tests and validate coverage**
-   - Run single file: `npx vitest run src/<module>/__tests__/file.test.ts`
-   - Run full suite: `npm run test`
-   - Check coverage: `npm run test:coverage`
-   - Verify all mocks are cleaned up: `afterEach(() => vi.clearAllMocks())`.
+5. **Mock LLM responses per-test only**
+   ```typescript
+   vi.spyOn(llmModule, 'llmCall').mockResolvedValueOnce({
+     content: [{type: 'text', text: JSON.stringify({...})}],
+     usage: {input_tokens: 100, output_tokens: 50}
+   });
+   ```
+   - Return object matching `LLMResponse` type from `src/llm/types.ts`.
+   - Restore with `vi.restoreAllMocks()` in `afterEach` or use `mockResolvedValueOnce` (auto-restores).
+   - Verify mock is called exactly once unless test requires multiple calls.
+
+6. **For learner/storage tests**: Use temp directories and real filesystem
+   - Write test data via `fs.writeFileSync(path.join(testDir, 'file.json'), JSON.stringify(data))`.
+   - Read and assert: `const result = JSON.parse(fs.readFileSync(path.join(testDir, 'file.json'), 'utf-8'))`.
+   - Verify test data persists and is cleaned up after test.
+
+7. **Run test and verify coverage**
+   - Execute: `pnpm test -- --run src/**/__tests__/your-test.test.ts`.
+   - Check coverage: `pnpm test:coverage` (v8 reporter).
+   - Verify all happy-path and error-path branches covered (aim for >80% for new tests).
+   - If test fails, check setup.ts is loaded and llmCall is mocked.
 
 ## Examples
 
-**User**: "Write a test for the `generate.ts` module."
+**User**: "Write a test for `src/learner/storage.ts` `saveState()` function."
 
 **Actions**:
-1. Create `src/ai/__tests__/generate.test.ts`
-2. Import llmModule and vitest utilities
-3. Mock llmJsonCall to return fingerprint-based config
-4. Test that `generate()` returns a CLAUDE.md config object
-5. Test error path: mock llmJsonCall rejection, verify error is caught
-6. Run: `npx vitest run src/ai/__tests__/generate.test.ts`
+1. Create `src/learner/__tests__/storage.test.ts`.
+2. Import `{ saveState, loadState }` from `../storage` and setup utils.
+3. In `beforeEach`: `testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'caliber-test-'))`.
+4. Write test:
+   ```typescript
+   it('should save state to file', async () => {
+     const state = { version: 1, data: { key: 'value' } };
+     const filePath = path.join(testDir, 'state.json');
+     await saveState(filePath, state);
+     const loaded = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+     expect(loaded).toEqual(state);
+   });
+   ```
+5. In `afterEach`: `fs.rmSync(testDir, { recursive: true })`.
+6. Run: `pnpm test -- --run src/learner/__tests__/storage.test.ts`.
 
-**Result**:
-```typescript
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { generate } from '../generate';
-import * as llmModule from '@/llm';
+**Result**: Test passes, file cleaned up, coverage +3%.
 
-describe('generate', () => {
-  afterEach(() => vi.clearAllMocks());
+---
 
-  it('should generate CLAUDE.md config from fingerprint', async () => {
-    vi.spyOn(llmModule, 'llmJsonCall').mockResolvedValueOnce({
-      content: { title: 'Test Project', commands: [] },
-    });
-    const result = await generate({ projectRoot: '/test' });
-    expect(result.title).toBe('Test Project');
-    expect(llmModule.llmJsonCall).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'claude-sonnet-4-6' }),
-    );
-  });
+**User**: "Add a test for fingerprint `fileTree()` with different directory structures."
 
-  it('should handle LLM errors gracefully', async () => {
-    vi.spyOn(llmModule, 'llmJsonCall').mockRejectedValueOnce(
-      new Error('API_ERROR'),
-    );
-    await expect(generate({ projectRoot: '/test' })).rejects.toThrow('API_ERROR');
-  });
-});
-```
+**Actions**:
+1. Create `src/fingerprint/__tests__/file-tree.test.ts`.
+2. Import `{ fileTree }` and `{ vol }` from `memfs`.
+3. In `beforeEach`: `vol.fromJSON({ '/project/src/index.ts': 'export {}', '/project/package.json': '{}' })`.
+4. Write test:
+   ```typescript
+   it('should return nested tree structure', async () => {
+     const tree = await fileTree('/project', { exclude: ['node_modules'] });
+     expect(tree.children).toHaveLength(2);
+     expect(tree.children?.some(n => n.name === 'src')).toBe(true);
+   });
+   ```
+5. Run: `pnpm test -- --run src/fingerprint/__tests__/file-tree.test.ts`.
+
+**Result**: Test passes with memfs-backed virtual filesystem, no I/O side effects.
 
 ## Common Issues
 
-**"Cannot find module '@/llm' or it is not mocked"**
-- Root cause: `src/test/setup.ts` not being loaded by Vitest.
-- Fix: Verify `vitest.config.ts` has `setupFiles: ['src/test/setup.ts']`. Run `npx vitest run --reporter=verbose` and check log output mentions setup.ts being loaded.
-
-**"llmCall is not a function"**
-- Root cause: Global mock in setup.ts is not working because vi.mock() runs before imports.
-- Fix: Verify test file imports `@/llm` AFTER the mock is active. Check that `src/llm/index.ts` exports named exports (not default). Run test in isolation: `npx vitest run src/<module>/__tests__/file.test.ts --reporter=verbose`.
-
-**"Unexpected file system access: /home/.../file.ts"**
-- Root cause: Test is using real fs instead of memfs or tmpdir.
-- Fix: For fingerprint tests, wrap fs calls in `vol` from memfs. For learner tests, use `path.join(os.tmpdir(), uniqueId)` and clean up in afterEach. Verify: `ls -la .caliber/` should NOT increase after test runs.
-
-**"Mock was not called as expected"**
-- Root cause: Function being tested does not actually call the mocked dependency.
-- Fix: Add `console.log()` in the function being tested to trace execution. Verify the mock spy is on the correct function: `expect(llmModule.llmJsonCall).toHaveBeenCalled()` before asserting call arguments. Check that the function under test actually invokes the mocked dependency.
-
-**"Cannot read property 'fromJSON' of undefined"**
-- Root cause: memfs not imported or vol not initialized.
-- Fix: Add `import { vol } from 'memfs';` at top of test file. Call `vol.reset()` in beforeEach. Verify memfs is installed: `npm ls memfs` (it's a devDependency).
+- **"Cannot find module 'src/test/setup'"** → Verify `src/test/setup.ts` exists and exports test utilities. Check path is relative (e.g., `import { llmCall } from '../../llm'` from `src/commands/__tests__/`).
+- **"llmCall is not mocked" or test calls real API** → Global mock in `setup.ts` may not be loaded. Add `vi.mock('../../llm')` at top of test file OR verify test runs after setup loads. Check vitest config includes `setupFiles: ['src/test/setup.ts']`.
+- **Test hangs or times out** → Likely async/await missing. Ensure test function is `async` and all promises are `await`ed. Use `vi.useFakeTimers()` for setTimeout tests.
+- **memfs vol.reset() doesn't clear filesystem** → Call `vol.reset()` in `beforeEach` BEFORE `vol.fromJSON()`. Verify no other test modifies vol concurrently.
+- **Temp directory not cleaned up (test pollutes filesystem)** → Missing `fs.rmSync(testDir, { recursive: true })` in `afterEach`. Wrap in try-finally if needed.
+- **"Cannot destructure llmCall from mocked module"** → Global mock returns object with `llmCall` property. Import as `import * as llmModule from '../../llm'` then use `llmModule.llmCall`.
+- **Type errors on mock return** → Verify return shape matches `LLMResponse` type: `{ content: Array<{type: string, text: string}>, usage: {input_tokens: number, output_tokens: number} }`.

@@ -1,138 +1,119 @@
 ---
 name: scoring-checks
-description: Adds a new deterministic scoring check to src/scoring/checks/ following the Check interface. Use constants from src/scoring/constants.ts for point values. Triggered by 'add scoring check', 'new check', 'score X', or modifications to src/scoring/. Do NOT use for LLM-based evaluation or refining checks after they're deployed.
+description: Adds a deterministic scoring check to src/scoring/checks/ implementing Check interface from src/scoring/index.ts with run(dir:string):Check[]. Point values from src/scoring/constants.ts. Use when user says 'add scoring check', 'new check', 'scoring validation'. Do NOT make LLM calls in checks—must be synchronous and filesystem-based only.
 ---
 # Scoring Checks
 
 ## Critical
 
-- **All checks are deterministic**: No LLM calls, no async I/O, no external APIs. Pure functions that analyze files/trees in memory.
-- **Check must implement the `Check` interface** from `src/scoring/index.ts`:
-  ```typescript
-  interface Check {
-    name: string;
-    run(ctx: CheckContext): number | Promise<number>;
-  }
-  interface CheckContext {
-    files: Map<string, string>; // path → content
-    tree: FileTree;
-    manifest: Manifest;
-  }
-  ```
-- **Point values MUST come from `src/scoring/constants.ts`**, not hardcoded. If a constant doesn't exist, add it to `constants.ts` first.
-- **Return an integer**: total points earned. Zero if check fails; positive if it passes.
-- **Register the check** in `src/scoring/checks/index.ts` (default export array).
-- **Verify output with** `npm run test -- src/scoring/__tests__/` before merging.
+- **No LLM calls.** Checks run deterministically. Use only filesystem operations, glob, and string parsing.
+- **Check interface compliance.** Every check must export a `run(dir: string): Check[]` function returning an array of `Check` objects.
+- **Point values from constants.** Use `src/scoring/constants.ts` for point assignments. Do NOT hardcode values.
+- **Synchronous only.** No promises or async. Scoring runs in-band during `score` command.
+- **Idempotent results.** Same directory state must always produce same check results.
 
 ## Instructions
 
-1. **Identify the check category** from existing checks in `src/scoring/checks/`:
-   - `existence.ts` — file presence (CLAUDE.md, .cursor/rules/)
-   - `quality.ts` — content depth & structure
-   - `grounding.ts` — relevance to codebase
-   - `accuracy.ts` — correctness of links/references
-   - `freshness.ts` — cache age & manifest updates
-   - `bonus.ts` — optional enhancements
-   
-   Choose the category or create a new file if check doesn't fit.
-   **Verify: Does the check category exist in `src/scoring/checks/`?**
+1. **Study the Check interface** in `src/scoring/index.ts`.
+   - Verify the shape: `{ name: string; points: number; reason: string; pass: boolean; rule?: string }`
+   - Note: `rule` is optional; use for referencing scoring constants or CLAUDE.md sections.
+   - Validation: Open `src/scoring/index.ts` and confirm the exact interface.
 
-2. **Study one existing check** in the target category to extract the pattern:
-   - Open e.g. `src/scoring/checks/existence.ts` and read the full function.
-   - Note: imports from `src/scoring/constants.ts`, `src/types.ts`, file path patterns.
-   - Note: how it accesses `ctx.files`, `ctx.tree`, `ctx.manifest`.
-   **Verify: Can you write pseudocode for the check logic in 2 sentences?**
+2. **Pick a point value from `src/scoring/constants.ts`** for your check.
+   - Examples: `POINTS.CLAUDE_MD` (20), `POINTS.AGENTS_MD` (15), `POINTS.CURSOR_RULES_EXIST` (10).
+   - Validation: Grep the constants file for the relevant key. If it doesn't exist, add it.
 
-3. **Add point constants** to `src/scoring/constants.ts` if they don't exist:
+3. **Create a new file** at `src/scoring/checks/<check-name>.ts`.
+   - Naming: Use kebab-case: `src/scoring/checks/my-new-check.ts`.
+   - Validation: Confirm file does not already exist.
+
+4. **Import required modules** at the top:
    ```typescript
-   export const POINTS_MY_CHECK = 50;
+   import { globSync } from 'glob';
+   import { existsSync, readFileSync } from 'fs';
+   import path from 'path';
+   import type { Check } from '../index';
+   import { POINTS } from '../constants';
    ```
-   Naming: `POINTS_<CHECK_NAME>` (uppercase, snake_case).
-   **Verify: Constants file compiles with `npx tsc --noEmit`.**
 
-4. **Create or update the check file**:
-   ```typescript
-   import { Check, CheckContext } from '../index.ts';
-   import { POINTS_MY_CHECK } from '../constants.ts';
-   
-   export const myCheck: Check = {
-     name: 'my-check', // kebab-case
-     run(ctx: CheckContext): number {
-       // Pure logic: inspect ctx.files, ctx.tree, ctx.manifest
-       // Return POINTS_MY_CHECK if condition met, else 0
-       const condition = /* ... */;
-       return condition ? POINTS_MY_CHECK : 0;
-     },
-   };
-   ```
-   **Verify: Check has no `async`, no `await`, no external calls.**
+5. **Implement `run(dir: string): Check[]`** function:
+   - Accept `dir` parameter (project root).
+   - Perform filesystem checks: file existence, glob patterns, file content parsing.
+   - Return array with one `Check` object per result (usually length 1).
+   - Example structure:
+     ```typescript
+     export function run(dir: string): Check[] {
+       const filePath = path.join(dir, 'CLAUDE.md');
+       const pass = existsSync(filePath);
+       return [{
+         name: 'CLAUDE.md exists',
+         points: POINTS.CLAUDE_MD,
+         reason: 'CLAUDE.md documents project context',
+         pass,
+         rule: 'CLAUDE.md'
+       }];
+     }
+     ```
+   - Validation: Check runs without throwing. Try/catch filesystem errors and return `pass: false`.
 
-5. **Register in `src/scoring/checks/index.ts`**:
-   ```typescript
-   import { myCheck } from './my-check.ts';
-   export default [existenceChecks, qualityChecks, myCheck, /* ... */];
-   ```
-   **Verify: `npx tsc --noEmit` passes.**
+6. **Register the check** in `src/scoring/index.ts`.
+   - Import your check file: `import { run as runMyCheck } from './checks/my-new-check'`.
+   - Add to the `runs` array inside the scoring function (e.g., in a for-loop or array concat).
+   - Validation: Grep `src/scoring/index.ts` for how existing checks are registered.
 
-6. **Write a test** in `src/scoring/__tests__/` (copy pattern from existing tests):
-   ```typescript
-   it('myCheck: returns POINTS_MY_CHECK if condition', async () => {
-     const ctx = { files: new Map([...]), tree, manifest };
-     const score = await myCheck.run(ctx);
-     expect(score).toBe(POINTS_MY_CHECK);
-   });
-   ```
-   **Verify: `npm run test -- src/scoring/__tests__/<check>.test.ts` passes.**
-
-7. **Run full scoring suite** to confirm integration:
-   ```bash
-   npm run test -- src/scoring/__tests__/
-   ```
-   **Verify: All tests pass, no regressions.**
+7. **Test the check** with `npm run test -- src/scoring/__tests__/checks.test.ts`.
+   - Create or update test file if it doesn't exist.
+   - Test structure: Mock filesystem with `memfs`, call `run(mockDir)`, assert `pass` and `points`.
+   - Validation: Test passes; coverage ≥80%.
 
 ## Examples
 
-**User says:** "Add a scoring check for .cursor/rules/typescript.md existence"
+**User says:** "Add a check to verify `.cursor/rules.json` exists and is valid JSON."
 
-**Actions taken:**
-
-1. Category: `existence.ts` (file presence check).
-2. Study `src/scoring/checks/existence.ts` → pattern: `ctx.files.has('path')` → return `POINTS_*` or `0`.
-3. Add `POINTS_CURSOR_TS_RULES = 15` to `constants.ts`.
-4. Update `src/scoring/checks/existence.ts`:
+**Actions:**
+1. Study `src/scoring/index.ts` — confirm `Check` type shape.
+2. Check `src/scoring/constants.ts` — find or add `POINTS.CURSOR_RULES_JSON`.
+3. Create `src/scoring/checks/cursor-rules-json.ts`:
    ```typescript
-   const cursorTsRulesExists: Check = {
-     name: 'cursor-ts-rules',
-     run(ctx: CheckContext) {
-       return ctx.files.has('.cursor/rules/typescript.md')
-         ? POINTS_CURSOR_TS_RULES
-         : 0;
-     },
-   };
-   ```
-5. Add to export array in `existence.ts`.
-6. Test: verify `npm run test -- src/scoring/__tests__/existence.test.ts` includes new case.
+   import { existsSync, readFileSync } from 'fs';
+   import path from 'path';
+   import type { Check } from '../index';
+   import { POINTS } from '../constants';
 
-**Result:** Check is live; `caliber score` now rewards `.cursor/rules/typescript.md` presence.
+   export function run(dir: string): Check[] {
+     const filePath = path.join(dir, '.cursor', 'rules.json');
+     let pass = false;
+     let reason = '.cursor/rules.json missing or invalid';
+
+     if (existsSync(filePath)) {
+       try {
+         const content = readFileSync(filePath, 'utf-8');
+         JSON.parse(content);
+         pass = true;
+         reason = '.cursor/rules.json exists and is valid JSON';
+       } catch (e) {
+         reason = '.cursor/rules.json exists but is not valid JSON';
+       }
+     }
+
+     return [{
+       name: 'Cursor rules JSON valid',
+       points: POINTS.CURSOR_RULES_JSON,
+       reason,
+       pass,
+       rule: 'Cursor ACP'
+     }];
+   }
+   ```
+4. Register in `src/scoring/index.ts`: Add `import { run as runCursorRulesJson } from './checks/cursor-rules-json'` and append to checks array.
+5. Test in `src/scoring/__tests__/checks.test.ts`: Mock `.cursor/rules.json`, call `run()`, assert `pass === true` and `points > 0`.
+
+**Result:** Scoring now deducts points if `.cursor/rules.json` is missing or malformed.
 
 ## Common Issues
 
-**Error: "Cannot find name 'POINTS_...'"**
-- **Cause:** Constant not defined in `src/scoring/constants.ts`.
-- **Fix:** Add `export const POINTS_MY_CHECK = <number>;` to `constants.ts`. Verify import in check file: `import { POINTS_MY_CHECK } from '../constants.ts';`
-
-**Error: "myCheck is not assigned to default export"**
-- **Cause:** Check not added to export array in `src/scoring/checks/index.ts`.
-- **Fix:** Open `index.ts`, add `import { myCheck } from './my-check.ts';`, then add `myCheck` to the default export array.
-
-**Test fails: "expected 50 but got 0"**
-- **Cause:** Check logic is returning 0 when it should return points.
-- **Fix:** Debug the condition in `run()`. Use `ctx.files.has()` not `ctx.files.get()` for existence. Verify `ctx.tree` or `ctx.manifest` structure matches actual data by logging in test.
-
-**Error: "Cannot read property 'files' of undefined"**
-- **Cause:** Test context not set up correctly.
-- **Fix:** Copy full test setup from `src/scoring/__tests__/existence.test.ts`. Ensure `files`, `tree`, and `manifest` are initialized before passing to `check.run(ctx)`.
-
-**Error: "check.run is not a function" or "myCheck is not a Check"**
-- **Cause:** Check object missing `name` or `run` property, or incorrect export.
-- **Fix:** Verify object literal has both fields: `{ name: string, run(ctx: CheckContext): number { ... } }`. Verify TypeScript compiles: `npx tsc --noEmit`.
+- **"Check is not in the runs array."** → Verify you imported the `run` function and added it to the checks array in `src/scoring/index.ts`. Grep for existing check registrations.
+- **"Check returns async promise, fails during score."** → Remove any `await`, `async`, or promises. Use only `fs.readFileSync` and `fs.existsSync`.
+- **"Point value undefined (POINTS.MY_KEY not found)."** → Add the constant to `src/scoring/constants.ts` first. Example: `MY_NEW_CHECK: 15` (adjust point value based on severity).
+- **"Test fails with 'ENOENT: no such file or directory'."** → Use `memfs` in tests to mock the filesystem. See existing tests in `src/scoring/__tests__/`.
+- **"Check always returns pass: false even when file exists."** → Verify the glob pattern or file path is relative to `dir`. Use `path.join(dir, 'relative/path')` not absolute paths.

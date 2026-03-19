@@ -1,113 +1,145 @@
 ---
 name: writers-pattern
-description: Adds a new file writer following the pattern in src/writers/. Writers generate and persist config files (CLAUDE.md, .cursor/rules/, AGENTS.md, skills) to disk, return string[] of written paths, use fs directly, and inject frontmatter. Use when: user says 'add writer', 'write config file', 'new platform output', or modifies src/writers/. Do NOT use for reading configs or parsing existing files.
+description: Add a file writer in src/writers/ with a named export function returning string[] of written paths. Uses fs.writeFileSync, mkdirSync recursive, and YAML frontmatter for SKILL.md. Use when user says 'add writer', 'new platform output', 'write to disk', or modifies src/writers/. Do NOT read configs in writers—accept config as parameter. Do NOT call LLM inside writer.
 ---
 # Writers Pattern
 
 ## Critical
 
-- Writers are **synchronous** functions that return `string[]` (paths written).
-- Always use `fs` module directly; never use async/await in writer functions.
-- Every writer must export a default function with signature: `(config: WriterConfig, data: WriterData) => string[]`.
-- Writers are invoked from `src/writers/staging.ts` after all generation is complete—do NOT call LLM or parse files.
-- Frontmatter injection (for skills only): prepend YAML block before markdown content. Study `src/writers/cursor/rules-writer.ts` for exact format.
-- Verify output directory exists before writing; create if missing using `mkdirSync(..., { recursive: true })`.
+- **Writers are pure I/O functions.** Never import LLM config, never call `llmCall()`, never read `.env`. Accept all inputs as parameters.
+- **Return type is always `string[]`** — list of absolute paths written (for cleanup, undo, manifest).
+- **Use `fs.writeFileSync(path, content)` + `mkdirSync(dir, { recursive: true })`** — no async, no streaming to disk.
+- **YAML frontmatter for SKILL.md:** Must match `{ name: string, description: string, content: string }`. Use `toYamlFrontmatter()` from `src/writers/index.ts`.
+- **All writers export a single named function** matching the pattern: `export function write<PlatformName>(config: Config, content: WriterInput): string[]`.
 
 ## Instructions
 
-1. **Create writer file** at `src/writers/<platform>/index.ts` (or similar).
-   - Study existing: `src/writers/claude/index.ts` (writes `CLAUDE.md`), `src/writers/cursor/index.ts` (writes `.cursor/rules/` + `.cursor/agents.json`), `src/writers/codex/index.ts`.
-   - Verify: Each file imports `fs`, `path`, and types from `src/writers/types.ts`.
+1. **Create the writer file** at `src/writers/<platform>/index.ts`.
+   - Verify the directory does not exist yet.
+   - Example: `src/writers/cursor/index.ts`, `src/writers/claude/index.ts`.
 
-2. **Import required types** from `src/writers/types.ts`:
-   ```typescript
-   import { WriterConfig, WriterData } from '../types';
-   import * as fs from 'fs';
-   import * as path from 'path';
-   ```
-   Verify: Both `WriterConfig` and `WriterData` interfaces exist in `types.ts` before proceeding.
+2. **Define the writer function** with signature: `export function write<PlatformName>(config: { projectRoot: string }, input: WriterInput): string[]`.
+   - Input type: Match existing `WriterInput` from `src/writers/index.ts` (e.g., `{ claudeMd: string, skillsByName: Record<string, Skill>, agentsMd: string }`)
+   - Verify function name is PascalCase: `writeCursor`, `writeClaude`, `writeCodex`.
 
-3. **Define writer function** with exact signature:
-   ```typescript
-   export default function writeMyPlatform(config: WriterConfig, data: WriterData): string[] {
-     const writtenPaths: string[] = [];
-     // implementation
-     return writtenPaths;
-   }
-   ```
-   Validate: Function body must be synchronous (no async/await).
+3. **Create output directories** using `mkdirSync(path.join(config.projectRoot, targetDir), { recursive: true })`.
+   - Verify directory structure matches the platform's spec (e.g., `.cursor/rules/`, `.codex/`, root for CLAUDE.md).
 
-4. **Handle directory creation**:
-   ```typescript
-   const outputDir = path.resolve(config.projectRoot, 'path/to/output');
-   fs.mkdirSync(outputDir, { recursive: true });
-   ```
-   Verify: Directory exists before any write operation.
+4. **Write all output files** using `fs.writeFileSync(filePath, content)`.
+   - For SKILL.md files: Wrap skill content with `toYamlFrontmatter({ name, description, content })`.
+   - Verify all paths are absolute (use `path.join()`).
+   - This step uses the directory structure from Step 3.
 
-5. **Write files using `fs.writeFileSync()`**:
-   - For CLAUDE.md or markdown: Use plain string content (no frontmatter unless skills).
-   - For skills (markdown): Prepend YAML frontmatter block. See step 6.
-   - Push each written path to `writtenPaths[]` before returning.
-   Validate: All content is available in `data` object (do NOT call LLM).
+5. **Collect and return all written paths** as `string[]`.
+   - Verify array is non-empty and all paths are absolute.
+   - Return in order written (for deterministic undo).
 
-6. **Inject frontmatter for skill files** (if applicable):
-   ```typescript
-   const frontmatter = `---\nname: ${skillName}\ndescription: ${skillDesc}\n---\n`;
-   const content = frontmatter + markdownBody;
-   fs.writeFileSync(filePath, content, 'utf8');
-   ```
-   Verify: Match frontmatter structure from existing skill files (e.g., `.cursor/rules/` in cursor writer).
+6. **Export the function in `src/writers/index.ts`** under the `WriterFunction` type.
+   - Verify the function is imported and added to the main export.
+   - Update the `writeSetup()` orchestrator to call the new writer.
 
-7. **Export from parent index** (`src/writers/index.ts`):
-   - Add import: `import writeMyPlatform from './my-platform/index.ts';`
-   - Add to `WRITERS` object or export function that calls it.
-   Validate: Parent index must expose your writer for invocation by `staging.ts`.
-
-8. **Add writer invocation** to `src/writers/staging.ts` (if not already wired):
-   - Call: `writtenPaths.push(...writeMyPlatform(config, data));`
-   - Verify: Invoked only after all generation complete (no early returns on failures).
-
-9. **Run and verify**:
-   ```bash
-   npm run build
-   npm run test -- src/writers/__tests__/
-   ```
-   Validate: Output files exist at expected paths; frontmatter is valid YAML; all returned paths match written files.
+7. **Add a test file** at `src/writers/<platform>/__tests__/index.test.ts` using Vitest.
+   - Verify mock `fs` and `path` using `memfs`.
+   - Test: function writes correct files, returns correct paths, handles missing config gracefully.
 
 ## Examples
 
-**User**: "Add a writer for the 'MyLLM' platform that outputs a JSON config file."
+**User says:** "Add a writer for Codex (OpenAI's platform)."
 
-**Actions**:
-1. Create `src/writers/my-llm/index.ts`.
-2. Define `writeMyLlmConfig(config: WriterConfig, data: WriterData): string[]`.
-3. Build config object from `data.config` and `data.agents`.
-4. Write JSON to `${config.projectRoot}/.caliber/my-llm-config.json` using `fs.writeFileSync()`.
-5. Push file path to `writtenPaths[]`; return it.
-6. Import in `src/writers/index.ts` and export.
-7. Call in `src/writers/staging.ts` after all other writers.
-8. Run `npm run build` and verify `.caliber/my-llm-config.json` exists with correct JSON structure.
+**Actions:**
 
-**Result**: Writer persists config, returns paths, integrates with staging pipeline.
+1. Create `src/writers/codex/index.ts`:
+```typescript
+import * as fs from 'fs';
+import * as path from 'path';
+import { toYamlFrontmatter } from '../index.js';
+
+export function writeCodex(
+  config: { projectRoot: string },
+  input: { claudeMd: string; skillsByName: Record<string, any>; agentsMd: string }
+): string[] {
+  const written: string[] = [];
+  const codexDir = path.join(config.projectRoot, '.codex');
+  fs.mkdirSync(codexDir, { recursive: true });
+
+  // Write CLAUDE.md
+  const claudePath = path.join(codexDir, 'CLAUDE.md');
+  fs.writeFileSync(claudePath, input.claudeMd);
+  written.push(claudePath);
+
+  // Write skills
+  const skillsDir = path.join(codexDir, 'skills');
+  fs.mkdirSync(skillsDir, { recursive: true });
+  for (const [name, skill] of Object.entries(input.skillsByName)) {
+    const skillPath = path.join(skillsDir, `${name}.md`);
+    const frontmatter = toYamlFrontmatter(skill);
+    fs.writeFileSync(skillPath, frontmatter);
+    written.push(skillPath);
+  }
+
+  return written;
+}
+```
+
+2. Update `src/writers/index.ts`:
+```typescript
+export { writeCodex } from './codex/index.js';
+// In writeSetup():
+const codexPaths = writeCodex(config, writerInput);
+written.push(...codexPaths);
+```
+
+3. Create `src/writers/codex/__tests__/index.test.ts`:
+```typescript
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import * as fs from 'fs';
+import { writeCodex } from '../index';
+
+vi.mock('fs');
+
+describe('writeCodex', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('writes CLAUDE.md and skill files', () => {
+    const input = {
+      claudeMd: '# Test',
+      skillsByName: { 'test-skill': { name: 'test', description: 'test', content: 'test' } },
+      agentsMd: ''
+    };
+    const paths = writeCodex({ projectRoot: '/test' }, input);
+    expect(paths).toHaveLength(2);
+    expect(fs.writeFileSync).toHaveBeenCalledTimes(2);
+  });
+});
+```
+
+**Result:** Writer added, exports function that writes 2 files, test passes.
 
 ## Common Issues
 
-**"ENOENT: no such file or directory"** when writing:
-- Directory does not exist before `writeFileSync()` call.
-- **Fix**: Add `fs.mkdirSync(path.dirname(filePath), { recursive: true });` before write.
+**"Cannot find module 'toYamlFrontmatter'"**
+- Verify import: `import { toYamlFrontmatter } from '../index.js'`
+- Check that `src/writers/index.ts` exports the function
+- Run `npm run build` to regenerate `dist/`
 
-**"Frontmatter is invalid YAML" in test**:
-- YAML block has unescaped special characters or incorrect formatting.
-- **Fix**: Ensure `---` is on its own lines; use JSON.stringify() to escape strings in frontmatter values.
+**"ENOENT: no such file or directory"**
+- Verify `mkdirSync(..., { recursive: true })` is called BEFORE `writeFileSync()`
+- Check that all parent directories in the path are created
+- Ensure `config.projectRoot` is absolute: `path.isAbsolute(config.projectRoot)` must be `true`
 
-**Writer not called during `caliber init`**:
-- Writer function not exported from parent index or not invoked in `staging.ts`.
-- **Fix**: Verify import in `src/writers/index.ts` and add call in `staging.ts` after line with last writer invocation.
+**"Function not called in writeSetup()"**
+- Verify the writer function is imported in `src/writers/index.ts`
+- Check that `writeSetup()` calls the function: `const paths = write<Name>(config, input);`
+- Verify the result is pushed to the `written` array: `written.push(...paths);`
 
-**Returned paths don't match written files**:
-- Path calculated differently than actual write location (e.g., relative vs absolute).
-- **Fix**: Use `path.resolve()` consistently; `writtenPaths.push(path.resolve(filePath));` and verify against `fs.existsSync(filePath)` after write.
+**"Paths are relative, not absolute"**
+- Verify all paths use `path.join(config.projectRoot, relativeSegments)` — not string concatenation
+- Ensure no paths start with `./` or `../`
+- Test: `path.isAbsolute(writtenPath)` must be `true` for all returned paths
 
-**"Cannot read property 'agents' of undefined"**:
-- `data.agents` or similar expected field missing from `WriterData`.
-- **Fix**: Check `src/writers/types.ts` for actual `WriterData` shape; adjust access (e.g., `data.config?.agents`).
+**"Skill YAML frontmatter malformed"**
+- Verify `toYamlFrontmatter()` is called: receives `{ name: string, description: string, content: string }`
+- Check that `content` field contains the markdown body (NOT frontmatter)
+- Ensure all string fields are escaped (quotes, newlines) — `toYamlFrontmatter` handles this

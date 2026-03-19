@@ -1,91 +1,121 @@
 ---
 name: adding-a-command
-description: Creates a new CLI command following caliber's pattern: file in src/commands/, export async function, register in src/cli.ts with tracked(), use ora spinners, throw __exit__ on user-facing failures. Use when user says 'add command', 'new subcommand', 'create CLI action', or adds files to src/commands/. Do NOT use for modifying existing commands.
+description: Creates a new CLI command following caliber's pattern: file in src/commands/, named export async function, register in src/cli.ts with tracked(), use ora spinners, throw __exit__ on user-facing failures. Use when user says 'add command', 'new subcommand', 'create CLI action', or adds files to src/commands/. Do NOT use for modifying existing commands or fixing bugs in existing command logic.
 ---
 # Adding a Command
 
 ## Critical
 
-1. **Command file location**: Create `src/commands/<name>.ts` (use actual command name, not placeholder)
-2. **CLI registration**: Add command to `src/cli.ts` using `.command()` with `tracked()` wrapper for telemetry
-3. **Error handling**: User-facing errors MUST use `throw new Error('__exit__: message')` pattern; all other errors propagate to telemetry
-4. **Spinner usage**: Use `ora` spinner for status updates — call `spinner.start()`, then `spinner.succeed()` or `spinner.fail()`
-5. **Named exports only**: Command functions use named exports, not default exports
+1. **Command file MUST be in `src/commands/`** with named export: `export async function commandName(options: Options): Promise<void>`
+2. **Register in `src/cli.ts`** using `.action(tracked('command-name', commandName))` to enable telemetry
+3. **User-facing errors MUST throw `__exit__`** — never console.error or process.exit directly
+4. **Always use `ora` spinners** for async operations; call `.stop()` before throwing or returning
+5. **Return type is always `Promise<void>`** — no return values, side effects only
 
 ## Instructions
 
-1. **Create command file** at `src/commands/<name>.ts` (replace `<name>` with your command name)
+1. **Create the command file**
+   - Path: `src/commands/your-command-name.ts`
+   - Import: `import { __exit__ } from '../lib/exit'` and `import ora from 'ora'`
+   - Define:
+     ```typescript
+     export interface YourCommandOptions {
+       // Add any CLI flags here
+     }
 
-```typescript
-import ora from 'ora';
+     export async function yourCommandName(options: YourCommandOptions): Promise<void> {
+       const spinner = ora('Processing...').start();
+       try {
+         // your logic
+         spinner.succeed('Done');
+       } catch (error) {
+         spinner.stop();
+         throw __exit__(error instanceof Error ? error.message : String(error));
+       }
+     }
+     ```
+   - Verify: File exists and exports the function; no direct process.exit or console.error calls
 
-export async function myCommand(options: { strict?: boolean } = {}): Promise<void> {
-  const spinner = ora();
-  try {
-    spinner.start('Performing action...');
-    // Implementation here
-    spinner.succeed('Action complete');
-  } catch (error) {
-    spinner.fail('Action failed');
-    throw error;
-  }
-}
-```
+2. **Register command in `src/cli.ts`**
+   - Import at top: `import { yourCommandName } from './commands/your-command-name'`
+   - Add Commander subcommand (matching existing pattern from `init`, `score`, `refresh`, etc.):
+     ```typescript
+     program
+       .command('your-command')
+       .description('What this command does')
+       .option('--flag <value>', 'Flag description')
+       .action(tracked('your-command', yourCommandName));
+     ```
+   - Verify: Command appears in `caliber --help`; no TypeScript errors
 
-2. **Register in `src/cli.ts`**
+3. **Add unit tests** (optional but recommended)
+   - Path: `src/commands/__tests__/your-command-name.test.ts`
+   - Use Vitest; mock `ora` spinner and `__exit__`
+   - Run: `npm run test -- your-command-name`
+   - Verify: Tests pass; coverage > 80%
 
-```typescript
-import { myCommand } from './commands/my-command.js';
+4. **Export from `src/commands/index.ts`** if re-exported (check if file exists)
+   - Add: `export { yourCommandName } from './your-command-name'`
+   - Verify: No circular imports; `npx tsc --noEmit` passes
 
-program
-  .command('my-command')
-  .description('Brief description of the command')
-  .option('--strict', 'Fail on warnings')
-  .action(tracked(async (options) => {
-    await myCommand(options);
-  }));
-```
+## Examples
 
-3. **Add tests** colocated with source (e.g., `src/commands/score.ts` → tests alongside it)
+**User says:** "Add a `caliber lint` command that validates CLAUDE.md files."
 
-```typescript
-import { describe, it, expect, vi } from 'vitest';
-import { myCommand } from '../my-command.js';
+**Actions:**
+1. Create `src/commands/lint.ts`:
+   ```typescript
+   import { __exit__ } from '../lib/exit';
+   import ora from 'ora';
+   import { globSync } from 'glob';
 
-vi.mock('ora', () => ({
-  default: vi.fn(() => ({ start: vi.fn(), succeed: vi.fn(), fail: vi.fn() })),
-}));
+   export interface LintOptions {
+     fix?: boolean;
+   }
 
-describe('myCommand', () => {
-  it('succeeds on valid input', async () => {
-    await expect(myCommand()).resolves.toBeUndefined();
-  });
+   export async function lint(options: LintOptions): Promise<void> {
+     const spinner = ora('Linting CLAUDE.md files...').start();
+     try {
+       const files = globSync('**/CLAUDE.md');
+       if (files.length === 0) throw new Error('No CLAUDE.md files found');
+       spinner.succeed(`Linted ${files.length} file(s)`);
+     } catch (error) {
+       spinner.stop();
+       throw __exit__(error instanceof Error ? error.message : String(error));
+     }
+   }
+   ```
 
-  it('throws on invalid input with strict mode', async () => {
-    await expect(myCommand({ strict: true })).rejects.toThrow();
-  });
-});
-```
+2. Register in `src/cli.ts`:
+   ```typescript
+   import { lint } from './commands/lint';
 
-4. **Build and validate**
+   program
+     .command('lint')
+     .description('Validate CLAUDE.md files')
+     .option('--fix', 'Auto-fix issues')
+     .action(tracked('lint', lint));
+   ```
 
-```bash
-npm run build
-node dist/bin.js my-command --help
-npm run test
-```
+3. Run: `npm run build && npx caliber lint` — spinners display, no errors throw __exit__
 
 ## Common Issues
 
-**Command not in `caliber --help`**
-- Verify `.command('my-command')` and `.action(tracked(...))` are chained in `src/cli.ts`
-- Run `npm run build` to recompile
+**Error: "Cannot find module '__exit__'"**
+- Fix: Verify `src/lib/exit.ts` exists. If missing, create: `export const __exit__ = (msg: string) => new Error(msg);`
+- Or import from existing pattern: check `src/commands/init.ts` for the correct path
 
-**Import errors at runtime**
-- In `src/cli.ts`, imports must use `.js` extension: `import { myCommand } from './commands/my-command.js'`
+**Error: "[ERR_REQUIRE_ESM]" when running command**
+- Fix: Ensure `src/cli.ts` uses `.action(tracked(...))` NOT `.action(async (options) => ...)` — tracked() wraps the async function
+- Verify import: `import { tracked } from '../telemetry'` exists
 
-**Telemetry not recording**
-- Ensure handler is wrapped: `.action(tracked('my-command', async (options) => { ... }))`
+**Spinner hangs or "unhandled rejection" after command**
+- Fix: Always call `spinner.stop()` or `spinner.succeed()` before throwing. If async operation fails, stop spinner FIRST: `spinner.stop(); throw __exit__(...)`
+- Verify: No await without try/catch; all promises resolved before function returns
 
-**Spinner shows wrong status**
-- Create new `ora()` instance per command; don't reuse across try/catch boundaries
+**TypeScript error: "Promise<void> is not assignable to void"**
+- Fix: Command function signature MUST be `async function (...): Promise<void>`. Remove any implicit returns (e.g., `return Promise.resolve()` → just let it return naturally)
+
+**Command not appearing in `caliber --help`**
+- Fix: Verify in `src/cli.ts`: (1) import statement added, (2) `.command('name')` matches intended subcommand, (3) `.action(tracked(...))` wraps the function
+- Run: `npm run build` then `npx caliber --help`
