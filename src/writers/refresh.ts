@@ -33,9 +33,8 @@ export function writeRefreshDocs(docs: RefreshDocs): string[] {
     const rulesDir = path.join('.cursor', 'rules');
     if (!fs.existsSync(rulesDir)) fs.mkdirSync(rulesDir, { recursive: true });
     for (const rule of docs.cursorRules) {
-      const filePath = path.join(rulesDir, rule.filename);
-      fs.writeFileSync(filePath, rule.content);
-      written.push(filePath);
+      fs.writeFileSync(path.join(rulesDir, rule.filename), rule.content);
+      written.push(`.cursor/rules/${rule.filename}`);
     }
   }
 
@@ -43,26 +42,23 @@ export function writeRefreshDocs(docs: RefreshDocs): string[] {
     const skillsDir = path.join('.claude', 'skills');
     if (!fs.existsSync(skillsDir)) fs.mkdirSync(skillsDir, { recursive: true });
     for (const skill of docs.claudeSkills) {
-      const filePath = path.join(skillsDir, skill.filename);
-      fs.writeFileSync(filePath, skill.content);
-      written.push(filePath);
+      fs.writeFileSync(path.join(skillsDir, skill.filename), skill.content);
+      written.push(`.claude/skills/${skill.filename}`);
     }
   }
 
   if (docs.copilotInstructions) {
     fs.mkdirSync('.github', { recursive: true });
-    const filePath = path.join('.github', 'copilot-instructions.md');
-    fs.writeFileSync(filePath, docs.copilotInstructions);
-    written.push(filePath);
+    fs.writeFileSync(path.join('.github', 'copilot-instructions.md'), docs.copilotInstructions);
+    written.push('.github/copilot-instructions.md');
   }
 
   if (docs.copilotInstructionFiles) {
     const instructionsDir = path.join('.github', 'instructions');
     fs.mkdirSync(instructionsDir, { recursive: true });
     for (const file of docs.copilotInstructionFiles) {
-      const filePath = path.join(instructionsDir, file.filename);
-      fs.writeFileSync(filePath, file.content);
-      written.push(filePath);
+      fs.writeFileSync(path.join(instructionsDir, file.filename), file.content);
+      written.push(`.github/instructions/${file.filename}`);
     }
   }
 
