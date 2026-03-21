@@ -22,15 +22,15 @@ export const SkillsFlow: React.FC = () => {
   const { fps } = useVideoConfig();
 
   const headerOpacity = interpolate(frame, [0, 14], [0, 1], { extrapolateRight: "clamp" });
-  const subtitleOpacity = interpolate(frame, [70, 90], [0, 1], { extrapolateRight: "clamp" });
+  const subtitleOpacity = interpolate(frame, [75, 95], [0, 1], { extrapolateRight: "clamp" });
 
   return (
     <AbsoluteFill
       style={{
         justifyContent: "flex-start",
         alignItems: "center",
-        paddingTop: 50,
-        background: `radial-gradient(ellipse 50% 40% at 50% 60%, ${theme.accent}05, transparent)`,
+        paddingTop: 48,
+        background: `radial-gradient(ellipse 50% 40% at 50% 60%, ${theme.accent}06, transparent)`,
       }}
     >
       {/* Section label */}
@@ -45,7 +45,7 @@ export const SkillsFlow: React.FC = () => {
           marginBottom: 10,
         }}
       >
-        Community Skills & MCPs
+        Best Skills & MCPs
       </div>
 
       {/* Headline */}
@@ -60,33 +60,34 @@ export const SkillsFlow: React.FC = () => {
           letterSpacing: "-0.02em",
         }}
       >
-        Based on the best skills & MCPs
+        Best playbooks, generated for your codebase
       </div>
 
-      {/* Registry sources with real icons */}
+      {/* Registry sources — LP "solution" card style */}
       <div style={{ display: "flex", gap: 20, marginBottom: 36 }}>
         {registries.map((reg, i) => {
-          const s = spring({ frame: frame - 6 - i * 5, fps, config: { damping: 14, stiffness: 90 } });
+          const s = spring({ frame: frame - 6 - i * 5, fps, config: { damping: 14, stiffness: 80 } });
           return (
             <div
               key={reg.name}
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 12,
-                padding: "14px 24px",
+                gap: 14,
+                padding: "16px 28px",
                 borderRadius: theme.radius,
                 backgroundColor: theme.surface,
                 border: `1px solid ${theme.surfaceBorder}`,
                 opacity: s,
-                transform: `translateY(${interpolate(s, [0, 1], [14, 0])}px)`,
+                transform: `translateY(${interpolate(s, [0, 1], [16, 0])}px)`,
+                boxShadow: theme.cardGlow,
               }}
             >
-              <reg.Icon size={28} color={reg.color} />
+              <reg.Icon size={30} color={reg.color} />
               <div style={{ display: "flex", flexDirection: "column" }}>
                 <span
                   style={{
-                    fontSize: 22,
+                    fontSize: 24,
                     fontWeight: 600,
                     fontFamily: theme.fontSans,
                     color: reg.color,
@@ -103,7 +104,7 @@ export const SkillsFlow: React.FC = () => {
         })}
       </div>
 
-      {/* Flow arrow dots */}
+      {/* Flow dots */}
       <div style={{ display: "flex", gap: 8, marginBottom: 24, alignItems: "center" }}>
         {[0, 1, 2].map((dot) => {
           const dotOpacity = interpolate(
@@ -116,8 +117,8 @@ export const SkillsFlow: React.FC = () => {
             <div
               key={dot}
               style={{
-                width: 7,
-                height: 7,
+                width: 8,
+                height: 8,
                 borderRadius: 4,
                 backgroundColor: theme.brand2,
                 opacity: dotOpacity,
@@ -125,14 +126,14 @@ export const SkillsFlow: React.FC = () => {
             />
           );
         })}
-        <span style={{ color: theme.textMuted, fontSize: 20, marginLeft: 4 }}>↓</span>
+        <span style={{ color: theme.textMuted, fontSize: 22, marginLeft: 4 }}>↓</span>
       </div>
 
       {/* Skill cards */}
-      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", justifyContent: "center", maxWidth: 960 }}>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", justifyContent: "center", maxWidth: 1000 }}>
         {skills.map((skill, i) => {
-          const delay = 24 + i * 4;
-          const s = spring({ frame: frame - delay, fps, config: { damping: 14, stiffness: 80 } });
+          const delay = 26 + i * 4;
+          const s = spring({ frame: frame - delay, fps, config: { damping: 14, stiffness: 75 } });
           return (
             <div
               key={skill.name}
@@ -143,16 +144,16 @@ export const SkillsFlow: React.FC = () => {
                 backgroundColor: theme.surface,
                 border: `1px solid ${theme.surfaceBorder}`,
                 borderRadius: theme.radiusSm,
-                padding: "12px 20px",
+                padding: "14px 22px",
                 opacity: s,
-                transform: `translateY(${interpolate(s, [0, 1], [14, 0])}px) scale(${interpolate(s, [0, 1], [0.95, 1])})`,
+                transform: `translateY(${interpolate(s, [0, 1], [16, 0])}px) scale(${interpolate(s, [0, 1], [0.95, 1])})`,
               }}
             >
-              <span style={{ fontSize: 20, opacity: 0.6 }}>{skill.icon}</span>
+              <span style={{ fontSize: 22, opacity: 0.6 }}>{skill.icon}</span>
               <span
                 style={{
                   color: theme.text,
-                  fontSize: 20,
+                  fontSize: 22,
                   fontWeight: 500,
                   fontFamily: theme.fontMono,
                 }}
@@ -164,14 +165,14 @@ export const SkillsFlow: React.FC = () => {
         })}
       </div>
 
-      {/* Key message */}
+      {/* Bottom tagline */}
       <div
         style={{
           position: "absolute",
-          bottom: "8%",
+          bottom: "7%",
           fontSize: 22,
           fontFamily: theme.fontSans,
-          color: theme.textMuted,
+          color: theme.textSecondary,
           opacity: subtitleOpacity,
         }}
       >

@@ -24,7 +24,7 @@ const stats = [
   {
     value: "0",
     label: "Config drift",
-    desc: "Continuous sync keeps everything aligned",
+    desc: "Continuous sync keeps it all aligned",
     color: theme.brand1,
   },
 ];
@@ -34,14 +34,17 @@ export const ROIStats: React.FC = () => {
   const { fps } = useVideoConfig();
 
   const headerOpacity = interpolate(frame, [0, 14], [0, 1], { extrapolateRight: "clamp" });
-  const ctaOpacity = interpolate(frame, [65, 85], [0, 1], { extrapolateRight: "clamp" });
+  const ctaOpacity = interpolate(frame, [68, 88], [0, 1], { extrapolateRight: "clamp" });
+
+  // Blinking cursor for CTA
+  const cursorVisible = Math.floor(frame / 15) % 2 === 0;
 
   return (
     <AbsoluteFill
       style={{
         justifyContent: "center",
         alignItems: "center",
-        background: `radial-gradient(ellipse 60% 50% at 50% 50%, ${theme.brand3}06, transparent)`,
+        background: `radial-gradient(ellipse 60% 50% at 50% 45%, ${theme.brand3}08, transparent)`,
       }}
     >
       {/* Section label */}
@@ -65,7 +68,7 @@ export const ROIStats: React.FC = () => {
         style={{
           position: "absolute",
           top: "13%",
-          fontSize: 46,
+          fontSize: 48,
           fontWeight: 700,
           fontFamily: theme.fontSans,
           color: theme.text,
@@ -77,19 +80,13 @@ export const ROIStats: React.FC = () => {
       </div>
 
       {/* Stats grid */}
-      <div
-        style={{
-          display: "flex",
-          gap: 24,
-          marginTop: 10,
-        }}
-      >
+      <div style={{ display: "flex", gap: 24, marginTop: 10 }}>
         {stats.map((stat, i) => {
-          const delay = 8 + i * 6;
-          const s = spring({ frame: frame - delay, fps, config: { damping: 14, stiffness: 70 } });
+          const delay = 10 + i * 6;
+          const s = spring({ frame: frame - delay, fps, config: { damping: 14, stiffness: 65 } });
 
           const counterProgress = spring({
-            frame: frame - delay - 3,
+            frame: frame - delay - 4,
             fps,
             config: { damping: 20, mass: 0.6 },
           });
@@ -106,38 +103,39 @@ export const ROIStats: React.FC = () => {
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
-                padding: "32px 28px",
+                padding: "34px 30px",
                 backgroundColor: theme.surface,
                 border: `1px solid ${theme.surfaceBorder}`,
                 borderRadius: theme.radiusLg,
-                minWidth: 220,
+                minWidth: 230,
                 opacity: s,
-                transform: `translateY(${interpolate(s, [0, 1], [20, 0])}px)`,
+                transform: `translateY(${interpolate(s, [0, 1], [22, 0])}px)`,
+                boxShadow: theme.cardGlow,
               }}
             >
               {/* Accent line */}
               <div
                 style={{
-                  width: 36,
+                  width: 40,
                   height: 4,
                   borderRadius: 2,
                   backgroundColor: stat.color,
-                  marginBottom: 18,
-                  boxShadow: `0 0 14px ${stat.color}40`,
+                  marginBottom: 20,
+                  boxShadow: `0 0 16px ${stat.color}40`,
                 }}
               />
 
               {/* Big number */}
               <div
                 style={{
-                  fontSize: 64,
+                  fontSize: 68,
                   fontWeight: 800,
                   fontFamily: theme.fontSans,
                   color: stat.color,
                   letterSpacing: "-0.03em",
                   fontVariantNumeric: "tabular-nums",
                   lineHeight: 1,
-                  marginBottom: 10,
+                  marginBottom: 12,
                 }}
               >
                 {displayValue}
@@ -146,7 +144,7 @@ export const ROIStats: React.FC = () => {
               {/* Label */}
               <div
                 style={{
-                  fontSize: 22,
+                  fontSize: 24,
                   fontWeight: 600,
                   fontFamily: theme.fontSans,
                   color: theme.text,
@@ -164,7 +162,7 @@ export const ROIStats: React.FC = () => {
                   fontFamily: theme.fontSans,
                   color: theme.textMuted,
                   textAlign: "center",
-                  maxWidth: 190,
+                  maxWidth: 200,
                   lineHeight: 1.4,
                 }}
               >
@@ -175,45 +173,54 @@ export const ROIStats: React.FC = () => {
         })}
       </div>
 
-      {/* CTA section */}
+      {/* CTA section — terminal-style install command */}
       <div
         style={{
           position: "absolute",
-          bottom: "6%",
+          bottom: "5%",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          gap: 14,
+          gap: 16,
           opacity: ctaOpacity,
         }}
       >
-        {/* Logo small */}
-        <Logo size={0.5} animate={false} />
+        <Logo size={0.55} animate={false} />
 
-        {/* Install command pill */}
+        {/* Terminal-style command */}
         <div
           style={{
             backgroundColor: theme.surface,
             border: `1px solid ${theme.surfaceBorder}`,
             borderRadius: 32,
-            padding: "14px 36px",
+            padding: "16px 40px",
             display: "flex",
             alignItems: "center",
             gap: 10,
+            boxShadow: theme.terminalGlow,
           }}
         >
-          <span style={{ color: theme.textMuted, fontFamily: theme.fontMono, fontSize: 24 }}>$</span>
-          <span style={{ color: theme.text, fontFamily: theme.fontMono, fontSize: 24, fontWeight: 500 }}>
+          <span style={{ color: theme.textMuted, fontFamily: theme.fontMono, fontSize: 26 }}>$</span>
+          <span style={{ color: theme.text, fontFamily: theme.fontMono, fontSize: 26, fontWeight: 500 }}>
             npx @rely-ai/caliber init
           </span>
+          {/* Blinking cursor */}
+          <div
+            style={{
+              width: 3,
+              height: 26,
+              backgroundColor: theme.brand3,
+              opacity: cursorVisible ? 1 : 0,
+              marginLeft: 4,
+            }}
+          />
         </div>
 
-        {/* Tagline */}
         <div
           style={{
-            fontSize: 20,
+            fontSize: 22,
             fontFamily: theme.fontSans,
-            color: theme.textMuted,
+            color: theme.textSecondary,
             fontWeight: 400,
           }}
         >

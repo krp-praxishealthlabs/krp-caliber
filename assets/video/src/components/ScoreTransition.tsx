@@ -15,11 +15,14 @@ function getGrade(score: number): string {
   return "F";
 }
 
-const checks = [
-  { label: "CLAUDE.md exists", before: "✗", after: "✓" },
-  { label: "Skills configured", before: "✗", after: "✓" },
-  { label: "MCP servers synced", before: "✗", after: "✓" },
-  { label: "Rules grounded", before: "—", after: "✓" },
+// LP-style 6-category breakdown
+const categories = [
+  { label: "Files & Setup", before: 6, after: 24, max: 25 },
+  { label: "Quality", before: 12, after: 22, max: 25 },
+  { label: "Grounding", before: 7, after: 19, max: 20 },
+  { label: "Accuracy", before: 5, after: 13, max: 15 },
+  { label: "Freshness", before: 5, after: 10, max: 10 },
+  { label: "Bonus", before: 2, after: 5, max: 5 },
 ];
 
 export const ScoreTransition: React.FC = () => {
@@ -27,16 +30,17 @@ export const ScoreTransition: React.FC = () => {
   const { fps } = useVideoConfig();
 
   const containerOpacity = interpolate(frame, [0, 12], [0, 1], { extrapolateRight: "clamp" });
-
-  // Slower transition: starts at frame 30, completes by ~60
-  const transitionProgress = spring({ frame: frame - 28, fps, config: { damping: 22, mass: 0.8 } });
+  const transitionProgress = spring({ frame: frame - 30, fps, config: { damping: 22, mass: 0.8 } });
   const score = Math.round(interpolate(transitionProgress, [0, 1], [47, 94]));
   const barWidth = interpolate(transitionProgress, [0, 1], [47, 94]);
   const scoreColor = getScoreColor(score);
   const grade = getGrade(score);
 
-  const glowIntensity = score >= 90 ? interpolate(frame, [60, 75], [0, 1], { extrapolateRight: "clamp" }) : 0;
-  const subtitleOpacity = interpolate(frame, [75, 95], [0, 1], { extrapolateRight: "clamp" });
+  const glowIntensity = score >= 90 ? interpolate(frame, [65, 80], [0, 1], { extrapolateRight: "clamp" }) : 0;
+  const subtitleOpacity = interpolate(frame, [80, 100], [0, 1], { extrapolateRight: "clamp" });
+
+  // Blinking cursor
+  const cursorVisible = Math.floor(frame / 15) % 2 === 0;
 
   return (
     <AbsoluteFill
@@ -44,121 +48,150 @@ export const ScoreTransition: React.FC = () => {
         justifyContent: "center",
         alignItems: "center",
         opacity: containerOpacity,
-        background: `radial-gradient(ellipse 40% 40% at 50% 50%, ${scoreColor}06, transparent)`,
+        background: `radial-gradient(ellipse 40% 40% at 50% 50%, ${scoreColor}08, transparent)`,
       }}
     >
-      {/* Section label */}
-      <div
-        style={{
-          position: "absolute",
-          top: "8%",
-          fontSize: 24,
-          fontFamily: theme.fontMono,
-          color: theme.textMuted,
-          textTransform: "uppercase",
-          letterSpacing: "0.15em",
-        }}
-      >
-        $ caliber score
-      </div>
-
-      {/* Score card */}
+      {/* Terminal-style frame matching LP */}
       <div
         style={{
           backgroundColor: theme.surface,
           borderRadius: theme.radiusLg,
-          padding: "52px 72px",
           border: `1px solid ${theme.surfaceBorder}`,
-          minWidth: 720,
-          boxShadow: `0 0 ${40 * glowIntensity}px ${theme.green}20`,
+          minWidth: 780,
+          boxShadow: glowIntensity > 0
+            ? `0 0 80px -20px ${theme.green}25`
+            : theme.terminalGlow,
+          overflow: "hidden",
         }}
       >
-        {/* Score row */}
-        <div style={{ display: "flex", alignItems: "baseline", gap: 20, marginBottom: 24 }}>
-          <span
-            style={{
-              color: theme.text,
-              fontSize: 100,
-              fontWeight: 700,
-              fontFamily: theme.fontSans,
-              fontVariantNumeric: "tabular-nums",
-              letterSpacing: "-0.02em",
-            }}
-          >
-            {score}
-          </span>
-          <span style={{ color: theme.textMuted, fontSize: 36, fontFamily: theme.fontSans }}>/100</span>
-          <div
-            style={{
-              marginLeft: "auto",
-              padding: "8px 28px",
-              borderRadius: 28,
-              backgroundColor: `${scoreColor}15`,
-              border: `1px solid ${scoreColor}30`,
-              color: scoreColor,
-              fontSize: 36,
-              fontWeight: 700,
-              fontFamily: theme.fontSans,
-            }}
-          >
-            Grade {grade}
-          </div>
-        </div>
-
-        {/* Progress bar */}
+        {/* Terminal header bar */}
         <div
           style={{
-            width: "100%",
-            height: 10,
-            backgroundColor: `${theme.textMuted}20`,
-            borderRadius: 5,
-            overflow: "hidden",
-            marginBottom: 28,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "12px 18px",
+            backgroundColor: theme.surfaceHeader,
+            borderBottom: `1px solid ${theme.surfaceBorder}`,
           }}
         >
+          <div style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: theme.red }} />
+          <div style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: theme.yellow }} />
+          <div style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: theme.green }} />
+          <span style={{ color: theme.textMuted, fontSize: 16, fontFamily: theme.fontMono, marginLeft: 12 }}>
+            $ caliber score
+          </span>
+          {/* Blinking cursor */}
           <div
             style={{
-              width: `${barWidth}%`,
-              height: "100%",
-              backgroundColor: scoreColor,
-              borderRadius: 5,
-              boxShadow: `0 0 14px ${scoreColor}40`,
+              width: 10,
+              height: 20,
+              backgroundColor: theme.brand3,
+              opacity: cursorVisible ? 1 : 0,
             }}
           />
         </div>
 
-        {/* Check items */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {checks.map((check, i) => {
-            const checkProgress = spring({
-              frame: frame - 34 - i * 4,
-              fps,
-              config: { damping: 14 },
-            });
-            const isAfter = checkProgress > 0.5;
-            const symbol = isAfter ? check.after : check.before;
-            const symbolColor = symbol === "✓" ? theme.green : symbol === "✗" ? theme.red : theme.textMuted;
+        {/* Terminal body */}
+        <div style={{ padding: "36px 48px" }}>
+          {/* Score row */}
+          <div style={{ display: "flex", alignItems: "baseline", gap: 20, marginBottom: 20 }}>
+            <span
+              style={{
+                color: theme.text,
+                fontSize: 96,
+                fontWeight: 700,
+                fontFamily: theme.fontSans,
+                fontVariantNumeric: "tabular-nums",
+                letterSpacing: "-0.03em",
+              }}
+            >
+              {score}
+            </span>
+            <span style={{ color: theme.textMuted, fontSize: 34, fontFamily: theme.fontSans }}>/100</span>
+            <div
+              style={{
+                marginLeft: "auto",
+                padding: "8px 28px",
+                borderRadius: 28,
+                backgroundColor: `${scoreColor}15`,
+                border: `1px solid ${scoreColor}30`,
+                color: scoreColor,
+                fontSize: 34,
+                fontWeight: 700,
+                fontFamily: theme.fontSans,
+              }}
+            >
+              Grade {grade}
+            </div>
+          </div>
 
-            return (
-              <div key={check.label} style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                <span
+          {/* Progress bar */}
+          <div
+            style={{
+              width: "100%",
+              height: 8,
+              backgroundColor: `${theme.textMuted}20`,
+              borderRadius: 4,
+              overflow: "hidden",
+              marginBottom: 24,
+            }}
+          >
+            <div
+              style={{
+                width: `${barWidth}%`,
+                height: "100%",
+                backgroundColor: scoreColor,
+                borderRadius: 4,
+                boxShadow: `0 0 14px ${scoreColor}40`,
+              }}
+            />
+          </div>
+
+          {/* 6-category breakdown — LP style */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 32px" }}>
+            {categories.map((cat, i) => {
+              const catValue = Math.round(
+                interpolate(transitionProgress, [0, 1], [cat.before, cat.after])
+              );
+              const catProgress = catValue / cat.max;
+              const catColor = catProgress >= 0.8 ? theme.green : catProgress >= 0.5 ? theme.yellow : theme.red;
+              const catSpring = spring({ frame: frame - 34 - i * 3, fps, config: { damping: 14 } });
+
+              return (
+                <div
+                  key={cat.label}
                   style={{
-                    width: 28,
-                    textAlign: "center",
-                    color: symbolColor,
-                    fontSize: 24,
-                    fontFamily: theme.fontMono,
-                    fontWeight: 600,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    opacity: catSpring,
                   }}
                 >
-                  {symbol}
-                </span>
-                <span style={{ color: theme.textSecondary, fontSize: 24, fontFamily: theme.fontSans }}>
-                  {check.label}
-                </span>
-              </div>
-            );
-          })}
+                  <span style={{ color: theme.textSecondary, fontSize: 20, fontFamily: theme.fontSans, minWidth: 140 }}>
+                    {cat.label}
+                  </span>
+                  {/* Mini bar */}
+                  <div style={{ flex: 1, height: 6, backgroundColor: `${theme.textMuted}15`, borderRadius: 3, overflow: "hidden" }}>
+                    <div style={{ width: `${catProgress * 100}%`, height: "100%", backgroundColor: catColor, borderRadius: 3 }} />
+                  </div>
+                  <span
+                    style={{
+                      color: catColor,
+                      fontSize: 20,
+                      fontWeight: 600,
+                      fontFamily: theme.fontMono,
+                      fontVariantNumeric: "tabular-nums",
+                      minWidth: 64,
+                      textAlign: "right",
+                    }}
+                  >
+                    {catValue}/{cat.max}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -166,32 +199,19 @@ export const ScoreTransition: React.FC = () => {
       <div
         style={{
           position: "absolute",
-          bottom: "8%",
+          bottom: "7%",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          gap: 8,
+          gap: 6,
           opacity: subtitleOpacity,
         }}
       >
-        <div
-          style={{
-            fontSize: 28,
-            fontFamily: theme.fontSans,
-            color: theme.text,
-            fontWeight: 600,
-          }}
-        >
+        <div style={{ fontSize: 28, fontFamily: theme.fontSans, color: theme.text, fontWeight: 600 }}>
           Fully runs on your setup
         </div>
-        <div
-          style={{
-            fontSize: 20,
-            fontFamily: theme.fontSans,
-            color: theme.textMuted,
-          }}
-        >
-          No code sent anywhere. 100% local scoring.
+        <div style={{ fontSize: 20, fontFamily: theme.fontSans, color: theme.textMuted }}>
+          No code sent anywhere. 100% local scoring. No API key needed.
         </div>
       </div>
     </AbsoluteFill>

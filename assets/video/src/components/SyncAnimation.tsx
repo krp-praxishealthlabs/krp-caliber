@@ -14,21 +14,24 @@ export const SyncAnimation: React.FC = () => {
   const { fps } = useVideoConfig();
 
   const headerOpacity = interpolate(frame, [0, 14], [0, 1], { extrapolateRight: "clamp" });
-  const codeSpring = spring({ frame, fps, config: { damping: 16, stiffness: 90 } });
-  const arrowProgress = interpolate(frame, [18, 34], [0, 1], {
+  const codeSpring = spring({ frame: frame - 4, fps, config: { damping: 16, stiffness: 80 } });
+  const arrowProgress = interpolate(frame, [20, 38], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
 
   const loopPulse = Math.sin(((frame % 30) / 30) * Math.PI * 2);
-  const loopOpacity = interpolate(frame, [65, 80], [0, 1], { extrapolateRight: "clamp" });
+  const loopOpacity = interpolate(frame, [70, 88], [0, 1], { extrapolateRight: "clamp" });
+
+  // Rotating refresh arrow
+  const arrowRotation = interpolate(frame, [38, 120], [0, 360], { extrapolateRight: "clamp" });
 
   return (
     <AbsoluteFill
       style={{
         justifyContent: "center",
         alignItems: "center",
-        background: `radial-gradient(ellipse 50% 40% at 30% 50%, ${theme.green}05, transparent)`,
+        background: `radial-gradient(ellipse 50% 40% at 30% 50%, ${theme.green}06, transparent)`,
       }}
     >
       {/* Section label */}
@@ -36,7 +39,7 @@ export const SyncAnimation: React.FC = () => {
         style={{
           position: "absolute",
           top: "6%",
-          fontSize: 24,
+          fontSize: 22,
           fontFamily: theme.fontMono,
           color: theme.textMuted,
           textTransform: "uppercase",
@@ -44,7 +47,7 @@ export const SyncAnimation: React.FC = () => {
           opacity: headerOpacity,
         }}
       >
-        $ caliber refresh
+        Continuous Sync
       </div>
 
       {/* Headline */}
@@ -60,30 +63,31 @@ export const SyncAnimation: React.FC = () => {
           letterSpacing: "-0.02em",
         }}
       >
-        Continuous sync — configs evolve with code
+        Configs evolve with your code
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 40, marginTop: 24 }}>
-        {/* Code diff card */}
+      <div style={{ display: "flex", alignItems: "center", gap: 44, marginTop: 24 }}>
+        {/* Terminal-style diff card */}
         <div
           style={{
             backgroundColor: theme.surface,
             border: `1px solid ${theme.surfaceBorder}`,
-            borderRadius: theme.radius,
-            padding: "22px 28px",
+            borderRadius: theme.radiusLg,
             opacity: codeSpring,
             transform: `scale(${interpolate(codeSpring, [0, 1], [0.95, 1])})`,
-            minWidth: 320,
+            minWidth: 340,
+            overflow: "hidden",
+            boxShadow: theme.terminalGlow,
           }}
         >
-          {/* macOS window dots */}
+          {/* Terminal header */}
           <div
             style={{
               display: "flex",
               alignItems: "center",
               gap: 7,
-              marginBottom: 14,
-              paddingBottom: 12,
+              padding: "10px 16px",
+              backgroundColor: theme.surfaceHeader,
               borderBottom: `1px solid ${theme.surfaceBorder}`,
             }}
           >
@@ -94,7 +98,9 @@ export const SyncAnimation: React.FC = () => {
               git diff
             </span>
           </div>
-          <div style={{ fontFamily: theme.fontMono, fontSize: 19, lineHeight: 2 }}>
+
+          {/* Diff content */}
+          <div style={{ padding: "18px 22px", fontFamily: theme.fontMono, fontSize: 19, lineHeight: 2 }}>
             <div>
               <span style={{ color: theme.green, fontWeight: 600 }}>+</span>
               <span style={{ color: "#c4b5fd" }}> export function </span>
@@ -110,19 +116,19 @@ export const SyncAnimation: React.FC = () => {
               <span style={{ color: "#c4b5fd" }}> export function </span>
               <span style={{ color: theme.text }}>rateLimit</span>
             </div>
-            <div style={{ marginTop: 8, color: theme.textMuted, fontSize: 16 }}>
+            <div style={{ marginTop: 8, color: theme.textMuted, fontSize: 15 }}>
               src/lib/auth.ts — 3 new exports
             </div>
           </div>
         </div>
 
-        {/* Sync arrow */}
+        {/* Animated sync circle */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
           <div
             style={{
-              width: 64,
-              height: 64,
-              borderRadius: 32,
+              width: 72,
+              height: 72,
+              borderRadius: 36,
               backgroundColor: theme.surface,
               border: `1px solid ${theme.surfaceBorder}`,
               display: "flex",
@@ -130,60 +136,67 @@ export const SyncAnimation: React.FC = () => {
               alignItems: "center",
               opacity: arrowProgress,
               transform: `scale(${arrowProgress})`,
-              boxShadow: `0 0 24px ${theme.brand3}15`,
+              boxShadow: `0 0 30px ${theme.brand3}18`,
             }}
           >
-            <svg width={34} height={34} viewBox="0 0 24 24" fill="none">
+            <svg
+              width={38}
+              height={38}
+              viewBox="0 0 24 24"
+              fill="none"
+              style={{ transform: `rotate(${arrowRotation}deg)` }}
+            >
               <path
                 d="M4 12C4 7.58 7.58 4 12 4C15.37 4 18.24 6.11 19.38 9"
                 stroke={theme.brand2}
-                strokeWidth={2}
+                strokeWidth={2.5}
                 strokeLinecap="round"
               />
               <path
                 d="M20 12C20 16.42 16.42 20 12 20C8.63 20 5.76 17.89 4.62 15"
                 stroke={theme.brand2}
-                strokeWidth={2}
+                strokeWidth={2.5}
                 strokeLinecap="round"
               />
-              <path d="M17 9H20V6" stroke={theme.brand2} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M7 15H4V18" stroke={theme.brand2} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M17 9H20V6" stroke={theme.brand2} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M7 15H4V18" stroke={theme.brand2} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
           <span
             style={{
-              fontSize: 15,
+              fontSize: 16,
               fontFamily: theme.fontMono,
               color: theme.brand2,
               opacity: arrowProgress,
               fontWeight: 600,
+              letterSpacing: "0.05em",
             }}
           >
-            sync
+            $ caliber refresh
           </span>
         </div>
 
-        {/* Output files with platform icons */}
+        {/* Output files */}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {outputFiles.map((file, i) => {
-            const delay = 22 + i * 6;
-            const s = spring({ frame: frame - delay, fps, config: { damping: 14, stiffness: 80 } });
+            const delay = 24 + i * 6;
+            const s = spring({ frame: frame - delay, fps, config: { damping: 14, stiffness: 75 } });
             return (
               <div
                 key={file.name}
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 12,
-                  padding: "10px 18px",
+                  gap: 14,
+                  padding: "12px 20px",
                   backgroundColor: theme.surface,
                   border: `1px solid ${theme.surfaceBorder}`,
                   borderRadius: theme.radiusSm,
                   opacity: s,
-                  transform: `translateX(${interpolate(s, [0, 1], [18, 0])}px)`,
+                  transform: `translateX(${interpolate(s, [0, 1], [20, 0])}px)`,
                 }}
               >
-                <file.Icon size={22} color={file.color} />
+                <file.Icon size={24} color={file.color} />
                 <div style={{ display: "flex", flexDirection: "column" }}>
                   <span style={{ color: theme.text, fontSize: 20, fontFamily: theme.fontMono, fontWeight: 500 }}>
                     {file.name}
@@ -192,14 +205,14 @@ export const SyncAnimation: React.FC = () => {
                     {file.platform}
                   </span>
                 </div>
-                <span style={{ color: theme.green, fontSize: 16, fontWeight: 700, marginLeft: "auto" }}>✓</span>
+                <span style={{ color: theme.green, fontSize: 18, fontWeight: 700, marginLeft: "auto" }}>✓</span>
               </div>
             );
           })}
         </div>
       </div>
 
-      {/* Continuous sync emphasis bar */}
+      {/* Continuous sync bar */}
       <div
         style={{
           position: "absolute",
@@ -207,23 +220,24 @@ export const SyncAnimation: React.FC = () => {
           display: "flex",
           alignItems: "center",
           gap: 14,
-          padding: "14px 32px",
-          borderRadius: 28,
-          backgroundColor: `${theme.brand3}10`,
+          padding: "16px 36px",
+          borderRadius: 32,
+          backgroundColor: `${theme.brand3}0d`,
           border: `1px solid ${theme.brand3}20`,
           opacity: loopOpacity,
+          boxShadow: theme.cardGlow,
         }}
       >
         <div
           style={{
-            width: 10,
-            height: 10,
-            borderRadius: 5,
+            width: 12,
+            height: 12,
+            borderRadius: 6,
             backgroundColor: theme.green,
-            boxShadow: `0 0 ${6 + loopPulse * 4}px ${theme.green}60`,
+            boxShadow: `0 0 ${8 + loopPulse * 5}px ${theme.green}60`,
           }}
         />
-        <span style={{ color: theme.textSecondary, fontSize: 22, fontFamily: theme.fontSans, fontWeight: 500 }}>
+        <span style={{ color: theme.text, fontSize: 24, fontFamily: theme.fontSans, fontWeight: 600 }}>
           Every push. Every branch. Always in sync.
         </span>
       </div>

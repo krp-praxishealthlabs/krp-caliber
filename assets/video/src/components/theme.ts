@@ -1,17 +1,18 @@
-// Design tokens matching the Caliber LP
+// Design tokens matching the Caliber LP exactly
 export const theme = {
   bg: "#0a0a0a",
-  surface: "#111113",
-  surfaceBorder: "#1e1e22",
-  surfaceHover: "#18181c",
+  surface: "#171717",          // LP card background
+  surfaceHeader: "#262626",    // LP terminal header
+  surfaceBorder: "#404040",    // LP border color
+  surfaceHover: "#1c1c1c",
 
-  // Brand gradient (logo bars)
-  brand1: "#fdba74", // lightest
-  brand2: "#fb923c", // mid
-  brand3: "#f97316", // deepest / primary
+  // Brand gradient (logo bars — LP orange palette)
+  brand1: "#fdba74", // lightest (orange-300)
+  brand2: "#fb923c", // mid (orange-400)
+  brand3: "#f97316", // deepest / primary (orange-500)
 
   // Accent
-  accent: "#7dd3fc", // cyan/blue
+  accent: "#7dd3fc", // cyan/blue (sky-300)
   accentDim: "#38bdf8",
 
   // Semantic
@@ -20,17 +21,21 @@ export const theme = {
   red: "#ef4444",
   yellow: "#eab308",
 
-  // Text
-  text: "#f5f5f5",
-  textSecondary: "#a1a1aa",
+  // Text (LP tokens)
+  text: "#fafafa",
+  textSecondary: "#a3a3a3",
   textMuted: "#52525b",
 
-  // Typography
-  fontSans: "'Inter', system-ui, -apple-system, sans-serif",
-  fontMono: "'Geist Mono', 'JetBrains Mono', 'SF Mono', monospace",
+  // Typography (LP fonts)
+  fontSans: "'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif",
+  fontMono: "'Geist Mono', 'JetBrains Mono', 'SF Mono', ui-monospace, monospace",
 
   // Radii
   radius: 12,
   radiusSm: 8,
   radiusLg: 16,
+
+  // LP signature effects
+  terminalGlow: "0 0 80px -20px rgba(249,115,22,0.15)",
+  cardGlow: "0 0 40px -10px rgba(249,115,22,0.08)",
 } as const;
