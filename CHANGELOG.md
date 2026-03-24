@@ -1,3 +1,11 @@
+## v1.30.2 (2026-03-24)
+
+### Bug Fixes
+
+- use os.tmpdir() in hooks tests for Windows CI (#87)
+- skip non-caliber binaries in argv[1] resolution (#86)
+- resolve npx binary correctly in hooks, docs, and CLI output (#85)
+
 ## v1.30.1 (2026-03-24)
 
 ### Bug Fixes
