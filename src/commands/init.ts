@@ -21,7 +21,7 @@ import { isClaudeCliAvailable } from '../llm/claude-cli.js';
 import { isCursorAgentAvailable, isCursorLoggedIn } from '../llm/cursor-acp.js';
 import confirm from '@inquirer/confirm';
 import { computeLocalScore } from '../scoring/index.js';
-import { displayScoreDelta } from '../scoring/display.js';
+import { displayScoreDelta, displayScoreSummary } from '../scoring/display.js';
 import { readDismissedChecks, writeDismissedChecks } from '../scoring/dismissed.js';
 import { searchSkills, selectSkills, installSkills } from './recommend.js';
 import type { SkillSearchResult } from './recommend.js';
@@ -96,23 +96,11 @@ export async function initCommand(options: InitOptions) {
     console.log(chalk.dim('  Keep your AI agent configs in sync — automatically.'));
     console.log(chalk.dim('  Works across Claude Code, Cursor, Codex, and GitHub Copilot.\n'));
 
-    console.log(title.bold('  What this does:\n'));
-    console.log(
-      chalk.dim('  Caliber reads your project structure (file tree, package.json, etc.)'),
-    );
-    console.log(chalk.dim('  and generates agent config files (CLAUDE.md, .cursor/rules/, etc.).'));
-    console.log(chalk.dim('  You review all changes before anything is written to disk.\n'));
-
-    console.log(title.bold('  Steps:\n'));
-    console.log(
-      chalk.dim('  1. Connect    Pick your LLM provider (or use your existing subscription)'),
-    );
-    console.log(
-      chalk.dim('  2. Build      Scan project, generate configs, install pre-commit sync'),
-    );
-    console.log(
-      chalk.dim('  3. Review     See exactly what changed — accept, refine, or decline\n'),
-    );
+    console.log(title.bold('  How it works:\n'));
+    console.log(chalk.dim('  1. Connect    Link your LLM provider and select your agents'));
+    console.log(chalk.dim('  2. Setup      Detect stack, install sync hooks & skills'));
+    console.log(chalk.dim('  3. Generate   Audit existing config or generate from scratch'));
+    console.log(chalk.dim('  4. Finalize   Review changes and score your setup\n'));
   } else {
     console.log(brand.bold('\n  CALIBER') + chalk.dim('  — setting up continuous sync\n'));
   }
@@ -223,21 +211,22 @@ export async function initCommand(options: InitOptions) {
   trackInitAgentSelected(targetAgent, agentAutoDetected);
 
   // ───────────────────────────────────────────────────────────────────────────
-  // Step 2 — Build (install sync + fingerprint + generate)
+  // Step 2 — Setup (fingerprint + install sync infrastructure)
   // ───────────────────────────────────────────────────────────────────────────
-  console.log(title.bold('  Step 2/3 — Build\n'));
+  console.log(title.bold('  Step 2/4 — Setup\n'));
 
-  // Install sync infrastructure
+  // Install pre-commit hook early — sync infrastructure first
   const hookResult = installPreCommitHook();
   if (hookResult.installed) {
-    console.log(`  ${chalk.green('✓')} Pre-commit hook installed`);
+    console.log(`  ${chalk.green('✓')} Pre-commit hook — configs sync on every commit`);
   } else if (hookResult.alreadyInstalled) {
-    console.log(`  ${chalk.green('✓')} Pre-commit hook — active`);
+    console.log(`  ${chalk.green('✓')} Pre-commit hook — already installed`);
   }
 
   installStopHook();
   console.log(`  ${chalk.green('✓')} Onboarding hook — nudges new team members to set up`);
 
+  // Install builtin skills (setup-caliber, find-skills, save-learning)
   const { ensureBuiltinSkills } = await import('../lib/builtin-skills.js');
   for (const agent of targetAgent) {
     if (agent === 'claude' && !fs.existsSync('.claude'))
@@ -249,7 +238,7 @@ export async function initCommand(options: InitOptions) {
   }
   const skillsWritten = ensureBuiltinSkills();
   if (skillsWritten.length > 0) {
-    console.log(`  ${chalk.green('✓')} Agent skills installed`);
+    console.log(`  ${chalk.green('✓')} Agent skills — ${skillsWritten.length} skills installed (setup-caliber, find-skills, save-learning)`);
   }
 
   // Enable session learning by default
@@ -263,9 +252,15 @@ export async function initCommand(options: InitOptions) {
 
   console.log('');
 
-  // Compute baseline score silently (for regression check and delta display later)
-  const baselineScore = computeLocalScore(process.cwd(), targetAgent);
-  log(options.verbose, `Baseline score: ${baselineScore.score}/100`);
+  // Compute & show initial score
+  let baselineScore = computeLocalScore(process.cwd(), targetAgent);
+  console.log(chalk.dim('  Current config score:'));
+  displayScoreSummary(baselineScore);
+  if (options.verbose) {
+    for (const c of baselineScore.checks) {
+      log(options.verbose, `  ${c.passed ? '✓' : '✗'} ${c.name}: ${c.earnedPoints}/${c.maxPoints}${c.suggestion ? ` — ${c.suggestion}` : ''}`);
+    }
+  }
 
   if (report) {
     report.markStep('Baseline scoring');
@@ -298,35 +293,24 @@ export async function initCommand(options: InitOptions) {
 
   const passingCount = baselineScore.checks.filter((c) => c.passed).length;
   const failingCount = baselineScore.checks.filter((c) => !c.passed).length;
-  trackInitScoreComputed(baselineScore.score, passingCount, failingCount, false);
 
-  // Decide whether to generate configs
-  // First run: always generate (no question). Existing config at 100: skip. Existing config <100: ask to improve.
+  // Ask whether to generate/audit configs
   let skipGeneration = false;
 
-  if (hasExistingConfig && baselineScore.score === 100 && !options.force) {
-    skipGeneration = true;
+  if (hasExistingConfig && baselineScore.score === 100) {
+    trackInitScoreComputed(baselineScore.score, passingCount, failingCount, true);
+    console.log(chalk.bold.green('\n  Your config is already optimal.\n'));
+    skipGeneration = !options.force;
   } else if (hasExistingConfig && !options.force && !options.autoApprove) {
-    const topGains = baselineScore.checks
-      .filter((c) => !c.passed && c.maxPoints > 0)
-      .sort((a, b) => b.maxPoints - b.earnedPoints - (a.maxPoints - a.earnedPoints))
-      .slice(0, 3);
-
-    console.log(chalk.dim(`  Config score: ${baselineScore.score}/100\n`));
-    if (topGains.length > 0) {
-      console.log(chalk.dim('  Top improvements Caliber can make:'));
-      for (const c of topGains) {
-        const pts = c.maxPoints - c.earnedPoints;
-        console.log(
-          chalk.dim(`    +${pts} pts`) +
-            chalk.white(` ${c.name}`) +
-            (c.suggestion ? chalk.gray(` — ${c.suggestion}`) : ''),
-        );
-      }
-      console.log('');
-    }
-    const improveAnswer = await confirm({ message: 'Improve your existing configs?' });
-    skipGeneration = !improveAnswer;
+    trackInitScoreComputed(baselineScore.score, passingCount, failingCount, false);
+    const auditAnswer = await promptInput('  Want Caliber to audit and improve your existing config? (Y/n) ');
+    skipGeneration = auditAnswer.toLowerCase() === 'n';
+  } else if (!hasExistingConfig && !options.force && !options.autoApprove) {
+    trackInitScoreComputed(baselineScore.score, passingCount, failingCount, false);
+    const generateAnswer = await promptInput('  Want Caliber to generate agent configs for your project? (Y/n) ');
+    skipGeneration = generateAnswer.toLowerCase() === 'n';
+  } else {
+    trackInitScoreComputed(baselineScore.score, passingCount, failingCount, false);
   }
 
   if (skipGeneration) {
@@ -409,7 +393,13 @@ export async function initCommand(options: InitOptions) {
     return;
   }
 
-  // Generation phase (part of Step 2)
+  const allFailingChecks = baselineScore.checks.filter(c => !c.passed && c.maxPoints > 0);
+  const llmFixableChecks = allFailingChecks.filter(c => !NON_LLM_CHECKS.has(c.id));
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Step 3 — Generate
+  // ───────────────────────────────────────────────────────────────────────────
+  console.log(title.bold('\n  Step 3/4 — Generate\n'));
 
   const genModelInfo = fastModel
     ? `  Using ${displayModel} for docs, ${fastModel} for skills`
@@ -688,9 +678,9 @@ export async function initCommand(options: InitOptions) {
   );
 
   // ───────────────────────────────────────────────────────────────────────────
-  // Step 3 — Done (Review + Score)
+  // Step 4 — Finalize (Review + Write)
   // ───────────────────────────────────────────────────────────────────────────
-  console.log(title.bold('  Step 3/3 — Done\n'));
+  console.log(title.bold('  Step 4/4 — Finalize\n'));
 
   const setupFiles = collectSetupFiles(generatedSetup, targetAgent);
   const staged = stageFiles(setupFiles, process.cwd());
@@ -828,14 +818,6 @@ export async function initCommand(options: InitOptions) {
   }
 
   if (fingerprint) ensurePermissions(fingerprint);
-
-  // Install pre-commit hook for automatic refresh on every commit
-  const hookResult = installPreCommitHook();
-  if (hookResult.installed) {
-    console.log(`  ${chalk.green('✓')} Pre-commit hook installed — configs sync on every commit`);
-  } else if (hookResult.alreadyInstalled) {
-    console.log(chalk.dim('  Pre-commit hook already installed'));
-  }
 
   const sha = getCurrentHeadSha();
   writeState({
