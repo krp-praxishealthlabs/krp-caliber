@@ -1,3 +1,9 @@
+## v1.34.0 (2026-03-29)
+
+### Features
+
+- agentic onboarding, uninstall command, telemetry improvements (#102)
+
 ## v1.33.4 (2026-03-29)
 
 ## v1.33.3 (2026-03-29)
