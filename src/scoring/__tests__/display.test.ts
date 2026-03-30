@@ -200,7 +200,7 @@ describe('displayScoreSummary', () => {
     });
     displayScoreSummary(result);
     const output = logs.join('\n');
-    const matches = output.match(/caliber score/g);
+    const matches = output.match(/caliber score/g) ?? [];
     expect(matches).toHaveLength(1);
   });
 
