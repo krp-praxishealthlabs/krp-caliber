@@ -1,3 +1,9 @@
+## v1.36.1 (2026-03-30)
+
+### Bug Fixes
+
+- scoring fairness, provider priority, and onboarding clarity (#106)
+
 ## v1.36.0 (2026-03-30)
 
 ### Features
