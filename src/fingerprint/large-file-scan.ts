@@ -19,7 +19,6 @@
 
 import fs from 'fs';
 import path from 'path';
-// 👇 Yahan IGNORE_DIRS ko successfully import kar liya gaya hai
 import { IGNORE_DIRS } from './file-tree.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
