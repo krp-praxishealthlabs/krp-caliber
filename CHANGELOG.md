@@ -1,3 +1,13 @@
+## v1.39.0 (2026-03-31)
+
+### Features
+
+- deeper Claude Code integration — rules, @include, skill paths, hooks (#111)
+
+### Bug Fixes
+
+- skip executable permission test on Windows (#112)
+
 ## v1.38.0 (2026-03-30)
 
 ### Features
