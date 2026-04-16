@@ -1,3 +1,9 @@
+## v1.43.0 (2026-04-16)
+
+### Features
+
+- model & effort pinning check + CLAUDE.md block (#75) (#80)
+
 ## v1.42.0 (2026-04-14)
 
 ### Features
