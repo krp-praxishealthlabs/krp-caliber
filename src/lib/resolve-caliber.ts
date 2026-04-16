@@ -4,6 +4,24 @@ import { execSync } from 'child_process';
 let _resolved: string | null = null;
 
 /**
+ * Pick the best executable from `where`/`which` output.
+ *
+ * On Windows, npm installs both an extensionless POSIX shell shim and a
+ * `.cmd` shim. `where` lists the POSIX shim first, but Node cannot exec it
+ * directly — only `.cmd`/`.exe`/`.bat` are spawnable on Windows.
+ */
+export function pickExecutable(out: string): string {
+  const lines = out
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (process.platform === 'win32') {
+    return lines.find((l) => /\.(cmd|exe|bat)$/i.test(l)) ?? lines[0] ?? '';
+  }
+  return lines[0] ?? '';
+}
+
+/**
  * Resolve the absolute path to the `caliber` binary.
  * Caches the result so the lookup happens at most once per process.
  *
@@ -26,7 +44,7 @@ export function resolveCaliber(): string {
     // Prefer a globally-installed caliber over the ephemeral npx invocation
     try {
       const out = execSync(whichCmd, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
-      const caliberPath = out.split('\n')[0].trim();
+      const caliberPath = pickExecutable(out);
       if (caliberPath) {
         _resolved = caliberPath;
         return _resolved;
@@ -40,7 +58,7 @@ export function resolveCaliber(): string {
         encoding: 'utf-8',
         stdio: ['pipe', 'pipe', 'pipe'],
       }).trim();
-      const npxPath = out.split('\n')[0].trim();
+      const npxPath = pickExecutable(out);
       if (npxPath) {
         _resolved = `${npxPath} --yes @rely-ai/caliber`;
         return _resolved;
@@ -59,7 +77,7 @@ export function resolveCaliber(): string {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
     }).trim();
-    const caliberPath = out.split('\n')[0].trim();
+    const caliberPath = pickExecutable(out);
     if (caliberPath) {
       _resolved = caliberPath;
       return _resolved;
@@ -85,7 +103,9 @@ export function resolveCaliber(): string {
 /** True when the resolved binary is a multi-word npx invocation (bare or absolute path). */
 export function isNpxResolution(): boolean {
   const r = resolveCaliber();
-  return r === 'npx --yes @rely-ai/caliber' || r.endsWith('/npx --yes @rely-ai/caliber');
+  if (r === 'npx --yes @rely-ai/caliber') return true;
+  // Match absolute paths on POSIX (/npx) and Windows (\npx, \npx.cmd, \npx.exe)
+  return /[\\/]npx(?:\.(?:cmd|exe|bat))? --yes @rely-ai\/caliber$/i.test(r);
 }
 
 /** Reset cached resolution — only for tests. */
