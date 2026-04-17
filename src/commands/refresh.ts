@@ -427,6 +427,12 @@ async function refreshSingleRepo(
 export async function refreshCommand(options: RefreshOptions) {
   const quiet = !!options.quiet;
 
+  // Skip entirely when running inside a caliber-spawned headless claude session.
+  // caliber sets CLAUDE_CODE_SIMPLE=1 in spawnClaude(); hooks inherit it. Without
+  // this guard the SessionEnd hooks cascade: each spawns another claude -p which
+  // fires the same hooks again until Claude Code times one out → "Hook cancelled".
+  if (quiet && process.env.CALIBER_SPAWNED === '1') return;
+
   // Skip if another caliber process is already running (e.g. hook fired mid-session)
   if (quiet) {
     const { isCaliberRunning } = await import('../lib/lock.js');

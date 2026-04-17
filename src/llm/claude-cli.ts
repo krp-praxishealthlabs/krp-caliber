@@ -92,7 +92,9 @@ function cleanClaudeEnv(): Record<string, string | undefined> {
 
 function spawnClaude(args: string[]): ChildProcess {
   const bin = resolveClaudeBin();
-  const env = cleanClaudeEnv();
+  // CALIBER_SPAWNED=1 signals to caliber's own hooks that they are running inside
+  // a caliber-spawned session and should be no-ops (prevents recursive hook cascade).
+  const env = { ...cleanClaudeEnv(), CALIBER_SPAWNED: '1' };
   return IS_WINDOWS
     ? spawn([bin, ...args].join(' '), {
         cwd: process.cwd(),
