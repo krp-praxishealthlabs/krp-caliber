@@ -123,7 +123,7 @@ program
   .description('Initialize your project for AI-assisted development')
   .option(
     '--agent <type>',
-    'Target agents (comma-separated): claude, cursor, codex, opencode, github-copilot',
+    'Target agents (comma-separated): claude, cursor, codex, opencode, github-copilot. Note: github-copilot is a sync target only — requires another provider for generation',
     parseAgentOption,
   )
   .option('--source <paths...>', 'Related source paths to include as context')
