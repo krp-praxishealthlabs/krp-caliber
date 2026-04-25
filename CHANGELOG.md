@@ -1,3 +1,16 @@
+## v1.46.2 (2026-04-25)
+
+### Bug Fixes
+
+- **skills**: correct scoring-checks function signature across platforms (#181)
+- **skills**: correct writers-pattern sync/export signature across platforms (#180)
+- **skills**: correct adding-a-command export pattern in .cursor/ skill (#179)
+- **skills**: align llm-provider stream() signature across platforms (#178)
+
+### Other
+
+- Revert "fix: sync divergent skill files across platforms (#185)" (#188)
+
 ## v1.46.1 (2026-04-24)
 
 ### Bug Fixes
