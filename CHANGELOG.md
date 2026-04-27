@@ -1,3 +1,33 @@
+## v1.47.0 (2026-04-27)
+
+### Features
+
+- **init,refresh**: warn on large files before LLM context is built
+- **init**: warn on large files before LLM context is built
+- **refresh**: wire large-file scanner into refresh flow
+- **init**: wire large-file scanner into init flow
+- **fingerprint**: add chalk/ora-safe large-file warning renderer
+- **fingerprint**: add recursive large-file scanner
+- add pre-scan warning for heavy data files to prevent context bloat
+
+### Bug Fixes
+
+- **fingerprint**: normalize VFS paths in tests for Windows compatibility
+
+### Refactoring
+
+- remove redundant comments from large-file integration
+- export IGNORE_DIRS from file-tree to avoid duplication
+- export IGNORE_DIRS from file-tree to avoid duplication
+- reuse IGNORE_DIRS from file-tree to avoid duplication
+- reuse IGNORE_DIRS from file-tree to avoid duplication
+- revert scanner changes to decouple large-file detection
+
+### Other
+
+- revert: restore tests to original state per review
+- revert: restore tests to original state per review
+
 ## v1.46.3 (2026-04-25)
 
 ## v1.46.2 (2026-04-25)
