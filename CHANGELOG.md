@@ -1,3 +1,9 @@
+## v1.47.1 (2026-04-27)
+
+### Bug Fixes
+
+- **windows**: resolve DEP0190 and libuv crashes in spawn calls (#193)
+
 ## v1.47.0 (2026-04-27)
 
 ### Features
