@@ -65,6 +65,8 @@ import {
   evaluateDismissals,
 } from './init-helpers.js';
 import { recordScore } from '../scoring/history.js';
+import { scanLargeFiles } from '../fingerprint/large-file-scan.js';
+import { printLargeFileWarnings } from '../fingerprint/large-file-warn.js';
 
 const IS_WINDOWS = process.platform === 'win32';
 
@@ -500,6 +502,9 @@ export async function initCommand(options: InitOptions) {
     // Phase A: Fingerprint
     display.update(TASK_STACK, 'running');
     fingerprint = await collectFingerprint(process.cwd());
+
+    // Warn about large files before feeding project context to the LLM.
+    printLargeFileWarnings(scanLargeFiles(process.cwd()));
 
     const stackParts = [...fingerprint.languages, ...fingerprint.frameworks];
     const stackSummary = stackParts.join(', ') || 'no languages';
