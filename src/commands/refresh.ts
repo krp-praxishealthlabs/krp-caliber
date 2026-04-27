@@ -158,7 +158,6 @@ async function refreshDir(
   const learnedSection = readLearnedSection();
   const fingerprint = await collectFingerprint(absDir);
 
-  // Warn about large files before feeding project context to the LLM.
   printLargeFileWarnings(scanLargeFiles(absDir), { spinner: spinner ?? undefined });
 
   const existingDocs = fingerprint.existingConfigs;

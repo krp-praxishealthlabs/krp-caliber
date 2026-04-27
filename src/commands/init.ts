@@ -503,7 +503,6 @@ export async function initCommand(options: InitOptions) {
     display.update(TASK_STACK, 'running');
     fingerprint = await collectFingerprint(process.cwd());
 
-    // Warn about large files before feeding project context to the LLM.
     printLargeFileWarnings(scanLargeFiles(process.cwd()));
 
     const stackParts = [...fingerprint.languages, ...fingerprint.frameworks];

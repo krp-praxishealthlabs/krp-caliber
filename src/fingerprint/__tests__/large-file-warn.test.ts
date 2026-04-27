@@ -1,31 +1,11 @@
-/**
- * src/fingerprint/__tests__/large-file-warn.test.ts
- *
- * Unit tests for printLargeFileWarnings().
- *
- * Tests verify:
- *  - Empty warnings → no output, no spinner interaction
- *  - Single warning → singular header wording
- *  - Multiple warnings → plural header wording
- *  - With ora spinner → output routed through spinner.warn(), not stderr
- *  - Without spinner → written to process.stderr
- *  - Hint text always present (.gitignore / .caliberignore)
- *  - File path and size always included in output
- *  - "context window" always mentioned in the header
- */
-
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { printLargeFileWarnings } from '../large-file-warn.js';
 import type { LargeFileWarning } from '../large-file-scan.js';
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function makeWarning(filePath: string, sizeMB: string): LargeFileWarning {
   const sizeBytes = Math.round(parseFloat(sizeMB) * 1_048_576);
   return { filePath, sizeBytes, sizeMB };
 }
-
-// ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('printLargeFileWarnings', () => {
   let stderrSpy: ReturnType<typeof vi.spyOn>;
@@ -37,8 +17,6 @@ describe('printLargeFileWarnings', () => {
   afterEach(() => {
     stderrSpy.mockRestore();
   });
-
-  // ── Empty warnings ────────────────────────────────────────────────────────
 
   it('does nothing when warnings array is empty (with spinner)', () => {
     const spinner = { warn: vi.fn() };
@@ -54,8 +32,6 @@ describe('printLargeFileWarnings', () => {
 
     expect(stderrSpy).not.toHaveBeenCalled();
   });
-
-  // ── Singular / plural header ──────────────────────────────────────────────
 
   it('uses singular wording for exactly one warning', () => {
     printLargeFileWarnings([makeWarning('/project/data.csv', '5.00')]);
@@ -75,8 +51,6 @@ describe('printLargeFileWarnings', () => {
     expect(output).toContain('2 large files');
   });
 
-  // ── File details ──────────────────────────────────────────────────────────
-
   it('includes file path and size for each warning', () => {
     printLargeFileWarnings([
       makeWarning('/project/data.csv', '5.20'),
@@ -90,8 +64,6 @@ describe('printLargeFileWarnings', () => {
     expect(output).toContain('12.75 MB');
   });
 
-  // ── Hint text ─────────────────────────────────────────────────────────────
-
   it('always includes .gitignore and .caliberignore in the hint', () => {
     printLargeFileWarnings([makeWarning('/project/dump.sqlite', '50.00')]);
 
@@ -100,8 +72,6 @@ describe('printLargeFileWarnings', () => {
     expect(output).toContain('.caliberignore');
   });
 
-  // ── Context window message ────────────────────────────────────────────────
-
   it('mentions AI context window in the warning header', () => {
     printLargeFileWarnings([makeWarning('/project/data.csv', '5.00')]);
 
@@ -109,15 +79,12 @@ describe('printLargeFileWarnings', () => {
     expect(output).toContain('context window');
   });
 
-  // ── Spinner routing ───────────────────────────────────────────────────────
-
   it('routes output through spinner.warn() when spinner is provided', () => {
     const spinner = { warn: vi.fn() };
 
-    printLargeFileWarnings(
-      [makeWarning('/project/data.csv', '5.00')],
-      { spinner: spinner as never },
-    );
+    printLargeFileWarnings([makeWarning('/project/data.csv', '5.00')], {
+      spinner: spinner as never,
+    });
 
     expect(spinner.warn).toHaveBeenCalledOnce();
     expect(stderrSpy).not.toHaveBeenCalled();
