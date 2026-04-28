@@ -1,3 +1,9 @@
+## v1.48.2 (2026-04-28)
+
+### Bug Fixes
+
+- **windows**: bypass cmd-shim console flash by invoking node directly in pre-commit hook (#197)
+
 ## v1.48.1 (2026-04-28)
 
 ### Bug Fixes
