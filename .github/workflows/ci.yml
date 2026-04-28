@@ -13,10 +13,16 @@ jobs:
   test:
     strategy:
       matrix:
+        # Node 25 added to catch the libuv UV_HANDLE_CLOSING + DEP0190
+        # regressions documented in #192/#194. Keep 20+22 for stable LTS coverage.
         os: [ubuntu-latest, windows-latest]
-        node: [20, 22]
+        node: [20, 22, 25]
       fail-fast: false
     runs-on: ${{ matrix.os }}
+    # Node 25 was just added to the matrix; keep it non-blocking for one cycle
+    # in case actions/setup-node@v4 doesn't have a Windows release ready yet.
+    # Drop this once Node 25 has shown up green at least once.
+    continue-on-error: ${{ matrix.node == 25 }}
     steps:
       - uses: actions/checkout@v4
 
