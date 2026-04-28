@@ -1,3 +1,13 @@
+## v1.48.0 (2026-04-28)
+
+### Features
+
+- single source of truth for skills via skills/ + generator (#199)
+
+### Refactoring
+
+- consolidate Caliber subprocess detection into single sentinel module (#198)
+
 ## v1.47.2 (2026-04-28)
 
 ### Bug Fixes
