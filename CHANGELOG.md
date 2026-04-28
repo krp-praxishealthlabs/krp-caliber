@@ -1,3 +1,10 @@
+## v1.47.2 (2026-04-28)
+
+### Bug Fixes
+
+- **windows**: flush telemetry before process exit to prevent libuv crash (#196)
+- **windows**: use forward-slash paths for bash hook commands (#195)
+
 ## v1.47.1 (2026-04-27)
 
 ### Bug Fixes
