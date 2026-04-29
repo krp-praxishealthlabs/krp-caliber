@@ -1,3 +1,9 @@
+## v1.49.3 (2026-04-29)
+
+### Other
+
+- v1.49.1: install audit P0 batch 2 (cascade fix, dedup, timeout) — stacked on #202 (#203)
+
 ## v1.49.2 (2026-04-30)
 
 ### Bug Fixes (install audit batch 2)
