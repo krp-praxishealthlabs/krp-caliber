@@ -35,8 +35,10 @@ describe('pre-commit-block', () => {
       const { appendPreCommitBlock } = await import('../pre-commit-block.js');
       const result = appendPreCommitBlock('# My Project');
 
-      expect(result).toContain('npx --yes @rely-ai/caliber refresh');
-      expect(result).toContain('npx --yes @rely-ai/caliber refresh && git add');
+      // displayCaliberName uses cleaner 'npx @rely-ai/caliber' (no --yes) for display.
+      // The --yes form is preserved for actual subprocess invocation via resolveCaliber().
+      expect(result).toContain('npx @rely-ai/caliber refresh');
+      expect(result).toContain('npx @rely-ai/caliber refresh && git add');
     });
 
     it('uses bare caliber in doc block when globally installed', async () => {
@@ -147,7 +149,7 @@ describe('pre-commit-block', () => {
       const { getCursorPreCommitRule } = await import('../pre-commit-block.js');
       const rule = getCursorPreCommitRule();
 
-      expect(rule.content).toContain('npx --yes @rely-ai/caliber refresh');
+      expect(rule.content).toContain('npx @rely-ai/caliber refresh');
     });
 
     it('uses bare caliber in Cursor rule when globally installed', async () => {
@@ -173,6 +175,46 @@ describe('pre-commit-block', () => {
       expect(rule.content).toContain('SYNCED');
       expect(rule.content).toContain('NOT_SYNCED');
       expect(rule.content).toContain('.cursor/skills/setup-caliber/SKILL.md');
+    });
+  });
+
+  describe('F-P0-3: no absolute caliber path baked into content', () => {
+    beforeEach(async () => {
+      // Force a "global install" resolution that returns an absolute path with a personal-looking prefix.
+      const { resetResolvedCaliber } = await import('../../lib/resolve-caliber.js');
+      resetResolvedCaliber();
+      process.argv[1] = '/usr/local/bin/caliber';
+      delete process.env.npm_execpath;
+      mockedExecSync.mockReturnValue('/Users/someone/.nvm/versions/node/v20/bin/caliber\n');
+    });
+
+    it('appendPreCommitBlock injects bare "caliber" not the absolute resolution', async () => {
+      const { appendPreCommitBlock } = await import('../pre-commit-block.js');
+      const out = appendPreCommitBlock('# test\n', 'claude');
+      expect(out).not.toContain('/Users/');
+      expect(out).not.toContain('.nvm/');
+      expect(out).toMatch(/`caliber refresh`/);
+    });
+
+    it('getCursorPreCommitRule injects bare "caliber"', async () => {
+      const { getCursorPreCommitRule } = await import('../pre-commit-block.js');
+      const rule = getCursorPreCommitRule();
+      expect(rule.content).not.toContain('/Users/');
+      expect(rule.content).toMatch(/`caliber refresh/);
+    });
+
+    it('appendSyncBlock injects bare "caliber"', async () => {
+      const { appendSyncBlock } = await import('../pre-commit-block.js');
+      const out = appendSyncBlock('# test\n', 'claude');
+      expect(out).not.toContain('/Users/');
+      expect(out).toMatch(/`caliber refresh`/);
+    });
+
+    it('getCursorSyncRule injects bare "caliber"', async () => {
+      const { getCursorSyncRule } = await import('../pre-commit-block.js');
+      const rule = getCursorSyncRule();
+      expect(rule.content).not.toContain('/Users/');
+      expect(rule.content).toMatch(/`caliber refresh`/);
     });
   });
 });
