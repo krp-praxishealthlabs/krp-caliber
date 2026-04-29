@@ -1,3 +1,9 @@
+## v1.49.1 (2026-04-29)
+
+### Other
+
+- v1.49.0: install audit + 3 P0 fixes (Vertex env, path baking, hook upgrade) (#202)
+
 ## v1.49.0 (2026-04-29)
 
 ### Bug Fixes (from install audit)
