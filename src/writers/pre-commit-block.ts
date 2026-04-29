@@ -71,8 +71,38 @@ If \`${bin}\` is not found, read the setup-caliber skill from .cursor/skills/set
 `;
 }
 
+// F-P0-10: detect both the marker form AND the unmarked inlined form.
+// Init inlines this section via the LLM prompt context; without this
+// detection, refresh's appendManagedBlocks() would add a marker-wrapped
+// duplicate, producing visible duplicate sections in CLAUDE.md.
+//
+// The marker phrase check is scoped to text BETWEEN the heading and the
+// next `## ` heading (or EOF) — not the whole file. This prevents false
+// positives in CLAUDE.md's that legitimately have a "Before Committing"
+// section unrelated to caliber but mention `caliber` elsewhere (e.g. in
+// a tools list or unrelated code block).
+const PRECOMMIT_HEADING_RE = /^##\s+Before Committing\s*$/m;
+
+/**
+ * Return the body of a section that starts at the first match of `headingRe`,
+ * ending at the next `## ` heading (or end of file). Returns null if the
+ * heading isn't found.
+ */
+function getSectionBody(content: string, headingRe: RegExp): string | null {
+  const match = content.match(headingRe);
+  if (!match || match.index === undefined) return null;
+  const start = match.index + match[0].length;
+  const tail = content.slice(start);
+  const nextHeadingMatch = tail.match(/^##\s/m);
+  const end = nextHeadingMatch?.index ?? tail.length;
+  return tail.slice(0, end);
+}
+
 export function hasPreCommitBlock(content: string): boolean {
-  return content.includes(BLOCK_START);
+  if (content.includes(BLOCK_START)) return true;
+  const body = getSectionBody(content, PRECOMMIT_HEADING_RE);
+  if (body && /caliber/i.test(body)) return true;
+  return false;
 }
 
 export function appendPreCommitBlock(content: string, platform: ConfigPlatform = 'claude'): string {
@@ -107,8 +137,14 @@ Read \`CALIBER_LEARNINGS.md\` for patterns and anti-patterns learned from previo
 These are auto-extracted from real tool usage — treat them as project-specific rules.
 `;
 
+// F-P0-10: same heading-scoped fallback for the learnings block.
+const LEARNINGS_HEADING_RE = /^##\s+Session Learnings\s*$/m;
+
 export function hasLearningsBlock(content: string): boolean {
-  return content.includes(LEARNINGS_BLOCK_START);
+  if (content.includes(LEARNINGS_BLOCK_START)) return true;
+  const body = getSectionBody(content, LEARNINGS_HEADING_RE);
+  if (body && /CALIBER_LEARNINGS/.test(body)) return true;
+  return false;
 }
 
 export function appendLearningsBlock(content: string): string {
@@ -139,8 +175,14 @@ Pin your choice (\`/model\` in Claude Code, or \`CALIBER_MODEL\` when using Cali
 ${MODEL_BLOCK_END}`;
 }
 
+// F-P0-10: same heading-scoped fallback for the model-config block.
+const MODEL_HEADING_RE = /^##\s+Model Configuration\s*$/m;
+
 export function hasModelBlock(content: string): boolean {
-  return content.includes(MODEL_BLOCK_START);
+  if (content.includes(MODEL_BLOCK_START)) return true;
+  const body = getSectionBody(content, MODEL_HEADING_RE);
+  if (body && /CALIBER_MODEL/.test(body)) return true;
+  return false;
 }
 
 export function appendModelBlock(content: string): string {
@@ -181,8 +223,14 @@ ${getSyncSetupInstruction(platform)}
 ${SYNC_BLOCK_END}`;
 }
 
+// F-P0-10: same heading-scoped fallback for the sync block.
+const SYNC_HEADING_RE = /^##\s+Context Sync\s*$/m;
+
 export function hasSyncBlock(content: string): boolean {
-  return content.includes(SYNC_BLOCK_START);
+  if (content.includes(SYNC_BLOCK_START)) return true;
+  const body = getSectionBody(content, SYNC_HEADING_RE);
+  if (body && /caliber-ai-org\/ai-setup/.test(body)) return true;
+  return false;
 }
 
 export function appendSyncBlock(content: string, platform: ConfigPlatform = 'claude'): string {
