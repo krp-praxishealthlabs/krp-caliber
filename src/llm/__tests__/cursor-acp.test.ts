@@ -1,16 +1,33 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EventEmitter } from 'node:events';
 import { Writable } from 'node:stream';
-import { CursorAcpProvider, isCursorAgentAvailable } from '../cursor-acp.js';
+import {
+  CursorAcpProvider,
+  isCursorAgentAvailable,
+  isCursorLoggedIn,
+  resetCursorLoginCache,
+  resetAgentBin,
+} from '../cursor-acp.js';
 import type { LLMConfig } from '../types.js';
 
 const spawn = vi.fn();
 const execSync = vi.fn();
+const execFileSync = vi.fn();
+const accessSync = vi.fn();
 
 vi.mock('node:child_process', () => ({
   spawn: (...args: unknown[]) => spawn(...args),
   execSync: (...args: unknown[]) => execSync(...args),
+  execFileSync: (...args: unknown[]) => execFileSync(...args),
 }));
+
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    default: { ...actual, accessSync: (...args: unknown[]) => accessSync(...args) },
+  };
+});
 
 function mockPrintAgent(output: string, exitCode = 0) {
   const child = new EventEmitter() as EventEmitter & {
@@ -185,7 +202,12 @@ describe('CursorAcpProvider', () => {
 
 describe('isCursorAgentAvailable', () => {
   beforeEach(() => {
+    resetAgentBin();
     execSync.mockReset();
+    accessSync.mockReset();
+    accessSync.mockImplementation(() => {
+      throw new Error('ENOENT');
+    });
   });
 
   it('returns true when agent binary is on PATH', () => {
@@ -195,10 +217,73 @@ describe('isCursorAgentAvailable', () => {
     expect(execSync).toHaveBeenCalledWith(expectedCmd, { stdio: 'ignore' });
   });
 
-  it('returns false when agent binary is not found', () => {
+  it('returns true when found via well-known path', () => {
+    execSync.mockImplementation(() => {
+      throw new Error('not found');
+    });
+    accessSync.mockImplementation(() => undefined);
+    expect(isCursorAgentAvailable()).toBe(true);
+  });
+
+  it('returns false when agent binary is not found anywhere', () => {
     execSync.mockImplementation(() => {
       throw new Error('not found');
     });
     expect(isCursorAgentAvailable()).toBe(false);
+  });
+});
+
+describe('isCursorLoggedIn', () => {
+  beforeEach(() => {
+    resetAgentBin();
+    resetCursorLoginCache();
+    execSync.mockReset();
+    execFileSync.mockReset();
+    accessSync.mockReset();
+    accessSync.mockImplementation(() => {
+      throw new Error('ENOENT');
+    });
+  });
+
+  it('returns true when status output does not contain "not logged in"', () => {
+    if (process.platform === 'win32') {
+      execSync.mockReturnValue(Buffer.from('Logged in as user@example.com'));
+    } else {
+      execFileSync.mockReturnValue(Buffer.from('Logged in as user@example.com'));
+    }
+    expect(isCursorLoggedIn()).toBe(true);
+  });
+
+  it('returns false when status output contains "not logged in"', () => {
+    if (process.platform === 'win32') {
+      execSync.mockReturnValue(Buffer.from('not logged in'));
+    } else {
+      execFileSync.mockReturnValue(Buffer.from('not logged in'));
+    }
+    expect(isCursorLoggedIn()).toBe(false);
+  });
+
+  it('returns false when the command throws', () => {
+    execSync.mockImplementation(() => {
+      throw new Error('command failed');
+    });
+    execFileSync.mockImplementation(() => {
+      throw new Error('command failed');
+    });
+    expect(isCursorLoggedIn()).toBe(false);
+  });
+
+  it('caches the result across calls', () => {
+    if (process.platform === 'win32') {
+      execSync.mockReturnValue(Buffer.from('Logged in'));
+    } else {
+      execFileSync.mockReturnValue(Buffer.from('Logged in'));
+    }
+    expect(isCursorLoggedIn()).toBe(true);
+    execSync.mockReset();
+    execFileSync.mockReset();
+    expect(isCursorLoggedIn()).toBe(true);
+    expect(execSync).not.toHaveBeenCalled();
+    expect(execFileSync).not.toHaveBeenCalled();
   });
 });

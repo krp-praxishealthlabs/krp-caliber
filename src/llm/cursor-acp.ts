@@ -1,5 +1,7 @@
 import { spawn, execSync, execFileSync, type ChildProcess } from 'node:child_process';
+import fs from 'node:fs';
 import os from 'node:os';
+import path from 'node:path';
 import type {
   LLMProvider,
   LLMCallOptions,
@@ -18,12 +20,31 @@ const IS_WINDOWS = process.platform === 'win32';
 let _agentBin: string | null = null;
 
 /**
+ * Known installation paths for the Cursor Agent CLI binary, in probe order.
+ * On Windows the installer places it at %LOCALAPPDATA%\cursor-agent\agent.cmd.
+ * On macOS/Linux it may be at ~/.local/bin/agent or /usr/local/bin/agent.
+ */
+function candidateAgentPaths(): string[] {
+  if (IS_WINDOWS) {
+    const localAppData = process.env.LOCALAPPDATA ?? path.join(os.homedir(), 'AppData', 'Local');
+    return [path.join(localAppData, 'cursor-agent', 'agent.cmd')];
+  }
+  const home = process.env.HOME ?? process.env.USERPROFILE ?? '';
+  return [`${home}/.local/bin/agent`, '/usr/local/bin/agent', '/opt/homebrew/bin/agent'].filter(
+    Boolean,
+  );
+}
+
+/**
  * Resolve the Cursor `agent` binary to an absolute path so it works even when
- * $PATH is stripped (e.g. Claude Code hook subprocesses on macOS).
+ * $PATH is stripped (e.g. Claude Code hook subprocesses on macOS) or the
+ * well-known install directory isn't on PATH (common on Windows).
  * Result is cached after first call.
  */
 function resolveAgentBin(): string {
   if (_agentBin !== null) return _agentBin;
+
+  // 1. Try PATH first
   try {
     const whichCmd = IS_WINDOWS ? 'where agent' : 'which agent';
     const out = execSync(whichCmd, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
@@ -35,6 +56,18 @@ function resolveAgentBin(): string {
   } catch {
     // not on PATH
   }
+
+  // 2. Probe well-known install locations
+  for (const candidate of candidateAgentPaths()) {
+    try {
+      fs.accessSync(candidate, IS_WINDOWS ? fs.constants.F_OK : fs.constants.X_OK);
+      _agentBin = candidate;
+      return _agentBin;
+    } catch {
+      // not found — try next candidate
+    }
+  }
+
   _agentBin = 'agent';
   return _agentBin;
 }
@@ -422,16 +455,33 @@ export function isCursorAgentAvailable(): boolean {
   }
 }
 
-/** Check if user is logged in to Cursor agent. */
+let cachedLoggedIn: boolean | null = null;
+
+/** Check if user is logged in to Cursor agent. Result is cached for the process lifetime. */
 export function isCursorLoggedIn(): boolean {
+  if (cachedLoggedIn !== null) return cachedLoggedIn;
   try {
-    const result = execFileSync(resolveAgentBin(), ['status'], {
-      input: '',
-      stdio: ['pipe', 'pipe', 'pipe'],
-      timeout: 5000,
-    });
-    return !result.toString().includes('not logged in');
+    const bin = resolveAgentBin();
+    const result = IS_WINDOWS
+      ? execSync(`${quoteForWindows(bin)} status`, {
+          stdio: ['pipe', 'pipe', 'pipe'],
+          timeout: 5000,
+          env: withCaliberSubprocessEnv(process.env),
+        })
+      : execFileSync(bin, ['status'], {
+          input: '',
+          stdio: ['pipe', 'pipe', 'pipe'],
+          timeout: 5000,
+          env: withCaliberSubprocessEnv(process.env),
+        });
+    cachedLoggedIn = !result.toString().includes('not logged in');
   } catch {
-    return false;
+    cachedLoggedIn = false;
   }
+  return cachedLoggedIn;
+}
+
+/** Reset the cached login status — used in tests. */
+export function resetCursorLoginCache(): void {
+  cachedLoggedIn = null;
 }
