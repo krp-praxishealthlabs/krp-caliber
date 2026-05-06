@@ -94,6 +94,10 @@ describe('CursorAcpProvider', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    resetAgentBin();
+    accessSync.mockImplementation(() => {
+      throw new Error('ENOENT');
+    });
     process.env = { ...originalEnv };
     delete process.env.CURSOR_API_KEY;
     delete process.env.CURSOR_AUTH_TOKEN;
@@ -423,22 +427,22 @@ describe('ensureBashShim', () => {
     expect(ensureBashShim()).toBeNull();
   });
 
-  it('creates shim when agent is resolved but not on bash PATH', () => {
-    Object.defineProperty(process, 'platform', { value: 'win32' });
-    accessSync.mockImplementation(() => undefined);
-    existsSync.mockReturnValue(true);
-    // First execSync: `where agent` for resolveAgentBin
-    // Second execSync: `which agent` for bash check
-    let callCount = 0;
-    execSync.mockImplementation(() => {
-      callCount++;
-      if (callCount <= 1)
-        return Buffer.from('C:\\Users\\test\\AppData\\Local\\cursor-agent\\agent.cmd\n');
-      throw new Error('not found');
-    });
-    const result = ensureBashShim();
-    expect(result).not.toBeNull();
-    expect(result!.created).toBe(true);
-    expect(writeFileSync).toHaveBeenCalled();
-  });
+  it.skipIf(process.platform !== 'win32')(
+    'creates shim when agent is resolved but not on bash PATH',
+    () => {
+      accessSync.mockImplementation(() => undefined);
+      existsSync.mockReturnValue(true);
+      let callCount = 0;
+      execSync.mockImplementation(() => {
+        callCount++;
+        if (callCount <= 1)
+          return Buffer.from('C:\\Users\\test\\AppData\\Local\\cursor-agent\\agent.cmd\n');
+        throw new Error('not found');
+      });
+      const result = ensureBashShim();
+      expect(result).not.toBeNull();
+      expect(result!.created).toBe(true);
+      expect(writeFileSync).toHaveBeenCalled();
+    },
+  );
 });

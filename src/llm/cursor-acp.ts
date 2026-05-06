@@ -542,7 +542,7 @@ export function isCursorLoggedIn(): boolean {
           timeout: 5000,
           env: withCaliberSubprocessEnv(process.env),
         });
-    cachedLoggedIn = !result.toString().includes('not logged in');
+    cachedLoggedIn = !result.toString().toLowerCase().includes('not logged in');
   } catch {
     cachedLoggedIn = false;
   }
