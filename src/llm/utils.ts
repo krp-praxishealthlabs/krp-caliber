@@ -38,20 +38,29 @@ export function stripMarkdownFences(text: string): string {
     .trim();
 }
 
+function isJsonObject(value: unknown): boolean {
+  return value !== null && typeof value === 'object';
+}
+
 export function parseJsonResponse<T>(raw: string): T {
   const cleaned = stripMarkdownFences(raw);
 
   try {
-    return JSON.parse(cleaned);
+    const parsed = JSON.parse(cleaned);
+    if (isJsonObject(parsed)) return parsed;
   } catch {
-    // Fall through to bracket extraction
+    // JSON.parse syntax error — fall through to bracket extraction
   }
 
   const json = extractJson(cleaned);
   if (!json) {
-    throw new Error(`No JSON found in LLM response: ${raw.slice(0, 200)}`);
+    throw new Error(`No valid JSON object in LLM response: ${raw.slice(0, 200)}`);
   }
-  return JSON.parse(json);
+  const extracted = JSON.parse(json);
+  if (!isJsonObject(extracted)) {
+    throw new Error(`No valid JSON object in LLM response: ${raw.slice(0, 200)}`);
+  }
+  return extracted;
 }
 
 export function estimateTokens(text: string): number {
