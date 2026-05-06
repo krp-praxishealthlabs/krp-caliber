@@ -1,3 +1,9 @@
+## v1.49.4 (2026-05-06)
+
+### Bug Fixes
+
+- resolve #209 null crash, #204 hardcoded paths, #206 cursor login (#213)
+
 ## v1.49.3 (2026-04-29)
 
 ### Other
